@@ -1,0 +1,157 @@
+from __future__ import annotations
+
+import json
+import sqlite3
+from datetime import datetime
+from pathlib import Path
+from uuid import uuid4
+
+from .models import EvalReport, Feedback, FeedbackCreate, Ticket, TicketCreate, TicketStatus
+
+
+class TicketStore:
+    def __init__(self, db_path: str | Path) -> None:
+        self.db_path = Path(db_path)
+        self.db_path.parent.mkdir(parents=True, exist_ok=True)
+        self._init_db()
+
+    def _connect(self) -> sqlite3.Connection:
+        connection = sqlite3.connect(self.db_path)
+        connection.row_factory = sqlite3.Row
+        return connection
+
+    def _init_db(self) -> None:
+        with self._connect() as connection:
+            connection.execute(
+                """
+                CREATE TABLE IF NOT EXISTS tickets (
+                    ticket_id TEXT PRIMARY KEY,
+                    question TEXT NOT NULL,
+                    device_model TEXT,
+                    firmware_version TEXT,
+                    error_code TEXT,
+                    category TEXT NOT NULL,
+                    priority TEXT NOT NULL,
+                    summary TEXT NOT NULL,
+                    retrieved_sources TEXT NOT NULL,
+                    suggested_action TEXT NOT NULL,
+                    status TEXT NOT NULL,
+                    created_at TEXT NOT NULL,
+                    updated_at TEXT NOT NULL
+                )
+                """
+            )
+            connection.execute(
+                """
+                CREATE TABLE IF NOT EXISTS feedback (
+                    feedback_id TEXT PRIMARY KEY,
+                    question TEXT NOT NULL,
+                    answer TEXT NOT NULL,
+                    useful INTEGER NOT NULL,
+                    ticket_id TEXT,
+                    comment TEXT,
+                    retrieved_sources TEXT NOT NULL,
+                    created_at TEXT NOT NULL
+                )
+                """
+            )
+
+    def create_ticket(self, payload: TicketCreate) -> Ticket:
+        now = datetime.now()
+        ticket = Ticket(
+            **payload.model_dump(),
+            ticket_id=f"T-{now:%Y%m%d}-{uuid4().hex[:8].upper()}",
+            status=TicketStatus.open,
+            created_at=now,
+            updated_at=now,
+        )
+        with self._connect() as connection:
+            connection.execute(
+                """
+                INSERT INTO tickets VALUES (
+                    :ticket_id, :question, :device_model, :firmware_version, :error_code,
+                    :category, :priority, :summary, :retrieved_sources, :suggested_action,
+                    :status, :created_at, :updated_at
+                )
+                """,
+                self._ticket_to_row(ticket),
+            )
+        return ticket
+
+    def list_tickets(self, status: TicketStatus | None = None) -> list[Ticket]:
+        query = "SELECT * FROM tickets"
+        params: tuple[str, ...] = ()
+        if status:
+            query += " WHERE status = ?"
+            params = (status.value,)
+        query += " ORDER BY created_at DESC"
+        with self._connect() as connection:
+            rows = connection.execute(query, params).fetchall()
+        return [self._row_to_ticket(row) for row in rows]
+
+    def update_ticket_status(self, ticket_id: str, status: TicketStatus) -> Ticket | None:
+        now = datetime.now().isoformat()
+        with self._connect() as connection:
+            cursor = connection.execute(
+                "UPDATE tickets SET status = ?, updated_at = ? WHERE ticket_id = ?",
+                (status.value, now, ticket_id),
+            )
+            if cursor.rowcount == 0:
+                return None
+            row = connection.execute("SELECT * FROM tickets WHERE ticket_id = ?", (ticket_id,)).fetchone()
+        return self._row_to_ticket(row)
+
+    def create_feedback(self, payload: FeedbackCreate) -> Feedback:
+        feedback = Feedback(
+            **payload.model_dump(),
+            feedback_id=f"F-{uuid4().hex[:10].upper()}",
+            created_at=datetime.now(),
+        )
+        with self._connect() as connection:
+            connection.execute(
+                """
+                INSERT INTO feedback VALUES (
+                    :feedback_id, :question, :answer, :useful, :ticket_id,
+                    :comment, :retrieved_sources, :created_at
+                )
+                """,
+                {
+                    **feedback.model_dump(),
+                    "useful": int(feedback.useful),
+                    "retrieved_sources": json.dumps(feedback.retrieved_sources, ensure_ascii=False),
+                    "created_at": feedback.created_at.isoformat(),
+                },
+            )
+        return feedback
+
+    def eval_report(self) -> EvalReport:
+        with self._connect() as connection:
+            ticket_count = connection.execute("SELECT COUNT(*) FROM tickets").fetchone()[0]
+            open_count = connection.execute("SELECT COUNT(*) FROM tickets WHERE status = 'open'").fetchone()[0]
+            feedback_count = connection.execute("SELECT COUNT(*) FROM feedback").fetchone()[0]
+            useful_count = connection.execute("SELECT COUNT(*) FROM feedback WHERE useful = 1").fetchone()[0]
+        rate = round(useful_count / feedback_count, 4) if feedback_count else 0.0
+        return EvalReport(
+            ticket_count=ticket_count,
+            open_ticket_count=open_count,
+            feedback_count=feedback_count,
+            useful_feedback_rate=rate,
+        )
+
+    @staticmethod
+    def _ticket_to_row(ticket: Ticket) -> dict[str, object]:
+        data = ticket.model_dump()
+        data["priority"] = ticket.priority.value
+        data["status"] = ticket.status.value
+        data["retrieved_sources"] = json.dumps(ticket.retrieved_sources, ensure_ascii=False)
+        data["created_at"] = ticket.created_at.isoformat()
+        data["updated_at"] = ticket.updated_at.isoformat()
+        return data
+
+    @staticmethod
+    def _row_to_ticket(row: sqlite3.Row) -> Ticket:
+        data = dict(row)
+        data["retrieved_sources"] = json.loads(data["retrieved_sources"])
+        data["created_at"] = datetime.fromisoformat(data["created_at"])
+        data["updated_at"] = datetime.fromisoformat(data["updated_at"])
+        return Ticket(**data)

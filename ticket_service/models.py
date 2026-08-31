@@ -1,0 +1,108 @@
+from __future__ import annotations
+
+from datetime import datetime
+from enum import Enum
+
+from pydantic import BaseModel, Field
+
+
+class TicketStatus(str, Enum):
+    open = "open"
+    reviewing = "reviewing"
+    resolved = "resolved"
+    closed = "closed"
+
+
+class Priority(str, Enum):
+    p1 = "P1"
+    p2 = "P2"
+    p3 = "P3"
+
+
+class Route(str, Enum):
+    direct_answer = "direct_answer"
+    review = "review"
+    handoff = "handoff"
+
+
+class TicketCreate(BaseModel):
+    question: str = Field(min_length=2)
+    device_model: str | None = None
+    firmware_version: str | None = None
+    error_code: str | None = None
+    category: str = "uncategorized"
+    priority: Priority = Priority.p2
+    summary: str
+    retrieved_sources: list[str] = Field(default_factory=list)
+    suggested_action: str = "human review recommended"
+
+
+class Ticket(TicketCreate):
+    ticket_id: str
+    status: TicketStatus = TicketStatus.open
+    created_at: datetime
+    updated_at: datetime
+
+
+class TicketUpdate(BaseModel):
+    status: TicketStatus
+
+
+class FeedbackCreate(BaseModel):
+    question: str
+    answer: str
+    useful: bool
+    ticket_id: str | None = None
+    comment: str | None = None
+    retrieved_sources: list[str] = Field(default_factory=list)
+
+
+class Feedback(FeedbackCreate):
+    feedback_id: str
+    created_at: datetime
+
+
+class EvalReport(BaseModel):
+    ticket_count: int
+    open_ticket_count: int
+    feedback_count: int
+    useful_feedback_rate: float
+
+
+class TelemetrySample(BaseModel):
+    sample_id: str
+    timestamp: datetime
+    device_id: str
+    product_line: str
+    device_model: str
+    firmware_version: str
+    online: bool
+    mqtt_connected: bool
+    heartbeat_age_sec: int = Field(ge=0)
+    rssi_dbm: int
+    battery_percent: int = Field(ge=0, le=100)
+    temperature_c: float
+    humidity_percent: float = Field(ge=0, le=100)
+    vibration_mm_s: float = Field(ge=0)
+    voltage_v: float = Field(ge=0)
+    error_code: str | None = None
+    last_upgrade_status: str = "idle"
+    customer_risk_signal: str | None = None
+
+
+class DiagnosticFinding(BaseModel):
+    category: str
+    severity: str
+    evidence: str
+    action: str
+
+
+class DiagnosticResult(BaseModel):
+    sample_id: str
+    device_id: str
+    category: str
+    priority: Priority
+    route: Route
+    confidence_score: float = Field(ge=0, le=1)
+    findings: list[DiagnosticFinding]
+    ticket_payload: TicketCreate | None = None

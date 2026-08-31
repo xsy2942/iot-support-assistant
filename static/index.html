@@ -1,0 +1,129 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>IoT Support Assistant</title>
+    <link rel="stylesheet" href="/static/styles.css" />
+  </head>
+  <body>
+    <div class="app-shell">
+      <aside class="sidebar">
+        <div class="brand">
+          <div class="brand-mark">IS</div>
+          <div>
+            <div class="brand-name">IoT Support</div>
+            <div class="brand-subtitle">诊断与工单控制台</div>
+          </div>
+        </div>
+        <nav class="nav-list" aria-label="Main navigation">
+          <a class="nav-item active" href="#overview">项目总览</a>
+          <a class="nav-item" href="#diagnostics">设备诊断</a>
+          <a class="nav-item" href="#tickets">工单闭环</a>
+          <a class="nav-item" href="/docs">接口文档</a>
+        </nav>
+        <div class="sidebar-note">
+          <span class="status-dot"></span>
+          <span id="service-status">服务检查中</span>
+        </div>
+      </aside>
+
+      <main class="main">
+        <header class="topbar">
+          <div>
+            <p class="eyebrow">IoT 售后运维</p>
+            <h1>设备诊断与转人工工单台</h1>
+          </div>
+          <div class="topbar-actions">
+            <button class="ghost-button" id="refresh-btn" type="button">刷新</button>
+            <button class="primary-button" id="load-sample-btn" type="button">载入异常样本</button>
+          </div>
+        </header>
+
+        <section class="metric-grid" id="overview" aria-label="Metrics">
+          <article class="metric">
+            <span class="metric-label">知识片段</span>
+            <strong>124</strong>
+            <span class="metric-hint">FAQ / 错误码 / 历史工单 / 手册</span>
+          </article>
+          <article class="metric">
+            <span class="metric-label">遥测样本</span>
+            <strong>80</strong>
+            <span class="metric-hint">心跳、MQTT、信号、电压</span>
+          </article>
+          <article class="metric">
+            <span class="metric-label">诊断用例</span>
+            <strong>40</strong>
+            <span class="metric-hint">分类、优先级、路由评测</span>
+          </article>
+          <article class="metric">
+            <span class="metric-label">工单数量</span>
+            <strong id="ticket-count">-</strong>
+            <span class="metric-hint" id="feedback-rate">等待服务返回</span>
+          </article>
+        </section>
+
+        <section class="workspace" id="diagnostics">
+          <div class="panel diagnostic-panel">
+            <div class="panel-heading">
+              <div>
+                <p class="eyebrow">遥测输入</p>
+                <h2>设备遥测诊断</h2>
+              </div>
+              <span class="pill">POST /diagnostics/analyze</span>
+            </div>
+            <textarea id="telemetry-input" spellcheck="false"></textarea>
+            <div class="button-row">
+              <button class="primary-button" id="analyze-btn" type="button">运行诊断</button>
+              <button class="danger-button" id="create-ticket-btn" type="button">创建工单</button>
+            </div>
+          </div>
+
+          <div class="panel result-panel">
+            <div class="panel-heading">
+              <div>
+                <p class="eyebrow">诊断结果</p>
+                <h2>故障判断</h2>
+              </div>
+              <span class="pill muted" id="route-pill">未运行</span>
+            </div>
+            <div id="diagnosis-output" class="empty-state">
+              载入异常样本后点击“运行诊断”，这里会展示故障分类、优先级、证据和建议动作。
+            </div>
+          </div>
+        </section>
+
+        <section class="panel" id="tickets">
+          <div class="panel-heading">
+            <div>
+              <p class="eyebrow">工单闭环</p>
+              <h2>工单队列</h2>
+            </div>
+            <span class="pill">GET /tickets</span>
+          </div>
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>工单号</th>
+                  <th>分类</th>
+                  <th>优先级</th>
+                  <th>状态</th>
+                  <th>摘要</th>
+                </tr>
+              </thead>
+              <tbody id="ticket-table">
+                <tr>
+                  <td colspan="5" class="empty-cell">暂无工单</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </section>
+      </main>
+    </div>
+
+    <div class="toast" id="toast" role="status" aria-live="polite"></div>
+    <script src="/static/app.js"></script>
+  </body>
+</html>
