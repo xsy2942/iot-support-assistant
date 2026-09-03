@@ -106,3 +106,36 @@ class DiagnosticResult(BaseModel):
     confidence_score: float = Field(ge=0, le=1)
     findings: list[DiagnosticFinding]
     ticket_payload: TicketCreate | None = None
+
+
+class TroubleshootingRequest(BaseModel):
+    question: str = Field(min_length=2)
+    issue_type: str | None = None
+    device_model: str | None = None
+    error_code: str | None = None
+    online_status: str | None = None
+    indicator_light: str | None = None
+    network_type: str | None = None
+    heartbeat_age_sec: int | None = Field(default=None, ge=0)
+    mqtt_connected: bool | None = None
+    last_upgrade_status: str | None = None
+    tried_steps: list[str] = Field(default_factory=list)
+    risk_signal: str | None = None
+
+
+class TroubleshootingQuestion(BaseModel):
+    field: str
+    question: str
+    options: list[str] = Field(default_factory=list)
+
+
+class TroubleshootingResult(BaseModel):
+    issue_type: str
+    route: Route
+    priority: Priority
+    confidence_score: float = Field(ge=0, le=1)
+    missing_fields: list[str] = Field(default_factory=list)
+    follow_up_questions: list[TroubleshootingQuestion] = Field(default_factory=list)
+    collected_facts: dict[str, str] = Field(default_factory=dict)
+    suggested_action: str
+    ticket_payload: TicketCreate | None = None

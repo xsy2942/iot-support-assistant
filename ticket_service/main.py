@@ -18,8 +18,11 @@ from .models import (
     TicketCreate,
     TicketStatus,
     TicketUpdate,
+    TroubleshootingRequest,
+    TroubleshootingResult,
 )
 from .storage import TicketStore
+from .troubleshooting import guide_troubleshooting
 
 
 DB_PATH = os.getenv("TICKET_DB_PATH", "./data/generated/tickets.sqlite3")
@@ -85,3 +88,16 @@ def create_ticket_from_diagnosis(payload: TelemetrySample) -> Ticket:
     if diagnosis.ticket_payload is None:
         raise HTTPException(status_code=400, detail="Diagnosis does not require a ticket")
     return store.create_ticket(diagnosis.ticket_payload)
+
+
+@app.post("/troubleshooting/next", response_model=TroubleshootingResult)
+def next_troubleshooting_step(payload: TroubleshootingRequest) -> TroubleshootingResult:
+    return guide_troubleshooting(payload)
+
+
+@app.post("/troubleshooting/create-ticket", response_model=Ticket)
+def create_ticket_from_troubleshooting(payload: TroubleshootingRequest) -> Ticket:
+    result = guide_troubleshooting(payload)
+    if result.ticket_payload is None:
+        raise HTTPException(status_code=400, detail="Troubleshooting result does not require a ticket")
+    return store.create_ticket(result.ticket_payload)

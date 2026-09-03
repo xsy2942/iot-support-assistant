@@ -18,6 +18,7 @@
         </div>
         <nav class="nav-list" aria-label="Main navigation">
           <a class="nav-item active" href="#overview">项目总览</a>
+          <a class="nav-item" href="#troubleshooting">多轮排障</a>
           <a class="nav-item" href="#diagnostics">设备诊断</a>
           <a class="nav-item" href="#tickets">工单闭环</a>
           <a class="nav-item" href="/docs">接口文档</a>
@@ -61,6 +62,36 @@
             <strong id="ticket-count">-</strong>
             <span class="metric-hint" id="feedback-rate">等待服务返回</span>
           </article>
+        </section>
+
+        <section class="workspace" id="troubleshooting">
+          <div class="panel diagnostic-panel">
+            <div class="panel-heading">
+              <div>
+                <p class="eyebrow">信息补全</p>
+                <h2>轻量多轮排障</h2>
+              </div>
+              <span class="pill">POST /troubleshooting/next</span>
+            </div>
+            <textarea id="troubleshooting-input" class="compact-textarea" spellcheck="false"></textarea>
+            <div class="button-row">
+              <button class="primary-button" id="troubleshooting-next-btn" type="button">生成下一步</button>
+              <button class="danger-button" id="troubleshooting-ticket-btn" type="button">按排障结果建单</button>
+            </div>
+          </div>
+
+          <div class="panel result-panel">
+            <div class="panel-heading">
+              <div>
+                <p class="eyebrow">引导结果</p>
+                <h2>追问与处理建议</h2>
+              </div>
+              <span class="pill muted" id="troubleshooting-route-pill">未运行</span>
+            </div>
+            <div id="troubleshooting-output" class="empty-state">
+              输入用户的模糊故障描述，系统会判断缺少哪些关键信息，并优先追问而不是直接强答。
+            </div>
+          </div>
         </section>
 
         <section class="workspace" id="diagnostics">

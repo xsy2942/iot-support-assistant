@@ -100,3 +100,58 @@ def test_diagnostics_can_create_ticket(tmp_path, monkeypatch):
     ticket = client.post("/diagnostics/create-ticket", json=sample)
     assert ticket.status_code == 200
     assert ticket.json()["category"] == "device_offline"
+
+
+def test_troubleshooting_asks_follow_up_for_incomplete_question(tmp_path, monkeypatch):
+    monkeypatch.setenv("TICKET_DB_PATH", str(tmp_path / "tickets.sqlite3"))
+
+    import ticket_service.main as main
+
+    importlib.reload(main)
+    client = TestClient(main.app)
+
+    response = client.post(
+        "/troubleshooting/next",
+        json={
+            "question": "设备连不上平台了，现场人员也说不清楚具体原因。",
+            "issue_type": "设备离线",
+        },
+    )
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["issue_type"] == "设备离线"
+    assert body["route"] == "direct_answer"
+    assert "device_model" in body["missing_fields"]
+    assert len(body["follow_up_questions"]) == 3
+    assert body["ticket_payload"] is None
+
+
+def test_troubleshooting_can_escalate_and_create_ticket(tmp_path, monkeypatch):
+    monkeypatch.setenv("TICKET_DB_PATH", str(tmp_path / "tickets.sqlite3"))
+
+    import ticket_service.main as main
+
+    importlib.reload(main)
+    client = TestClient(main.app)
+
+    payload = {
+        "question": "GW-200 固件升级失败，客户投诉现场数据丢失。",
+        "issue_type": "固件升级失败",
+        "device_model": "GW-200",
+        "error_code": "E203",
+        "network_type": "4G",
+        "last_upgrade_status": "failed",
+        "tried_steps": ["重启设备", "重新下发升级任务"],
+    }
+
+    result = client.post("/troubleshooting/next", json=payload)
+    assert result.status_code == 200
+    body = result.json()
+    assert body["route"] == "handoff"
+    assert body["priority"] == "P1"
+    assert body["ticket_payload"] is not None
+
+    ticket = client.post("/troubleshooting/create-ticket", json=payload)
+    assert ticket.status_code == 200
+    assert ticket.json()["category"] == "固件升级失败"

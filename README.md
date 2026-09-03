@@ -13,6 +13,7 @@ IoT 设备技术支持知识库与工单助手。
 - 40 条遥测诊断样例与诊断评测脚本。
 - FastAPI 工单服务：创建工单、查看工单、更新状态、记录反馈、输出评测报告。
 - 中文前端 Dashboard：设备诊断、转人工工单、反馈和指标展示。
+- 轻量多轮排障：用户描述不完整时先追问设备型号、错误码、在线状态、网络类型等关键信息。
 - DeepSeek、阿里云百炼、Tavily 接入检查脚本。
 - FastGPT 独立 Docker runtime，已创建 IoT 知识库并导入 124 条分块。
 - FastGPT 应用 `IoT Support Copilot`，已连接 IoT 知识库与 DeepSeek 回答节点。
@@ -40,6 +41,11 @@ IoT 设备技术支持知识库与工单助手。
 - 项目前端：[http://127.0.0.1:8000/](http://127.0.0.1:8000/)
 - API 文档：[http://127.0.0.1:8000/docs](http://127.0.0.1:8000/docs)
 - 健康检查：[http://127.0.0.1:8000/health](http://127.0.0.1:8000/health)
+
+多轮排障接口：
+
+- `POST /troubleshooting/next`：根据已知信息生成下一步追问或处理建议
+- `POST /troubleshooting/create-ticket`：高风险或建议复核时创建工单
 
 ## 数据生成
 
@@ -115,4 +121,5 @@ D:\pycmexercise\fastgpt-runtime
 - [docs/docker_fastgpt_plan.md](docs/docker_fastgpt_plan.md)
 - [docs/fastgpt_workflow.md](docs/fastgpt_workflow.md)
 - [docs/diagnostics.md](docs/diagnostics.md)
+- [docs/troubleshooting.md](docs/troubleshooting.md)
 - [docs/project_positioning.md](docs/project_positioning.md)

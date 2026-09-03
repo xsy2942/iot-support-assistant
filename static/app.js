@@ -19,8 +19,26 @@ const sampleTelemetry = {
   customer_risk_signal: null
 };
 
+const sampleTroubleshooting = {
+  question: "设备连不上平台了，现场人员也说不清楚具体原因。",
+  issue_type: "设备离线",
+  device_model: null,
+  error_code: null,
+  online_status: null,
+  indicator_light: null,
+  network_type: null,
+  heartbeat_age_sec: null,
+  mqtt_connected: null,
+  last_upgrade_status: null,
+  tried_steps: [],
+  risk_signal: null
+};
+
 const telemetryInput = document.querySelector("#telemetry-input");
 const diagnosisOutput = document.querySelector("#diagnosis-output");
+const troubleshootingInput = document.querySelector("#troubleshooting-input");
+const troubleshootingOutput = document.querySelector("#troubleshooting-output");
+const troubleshootingRoutePill = document.querySelector("#troubleshooting-route-pill");
 const ticketTable = document.querySelector("#ticket-table");
 const ticketCount = document.querySelector("#ticket-count");
 const feedbackRate = document.querySelector("#feedback-rate");
@@ -71,10 +89,23 @@ const actionNames = {
   "Continue monitoring for two heartbeat cycles.": "继续观察两个心跳周期。"
 };
 
+const fieldLabels = {
+  device_model: "设备型号",
+  error_code: "错误码",
+  online_status: "在线状态",
+  indicator_light: "指示灯",
+  network_type: "网络类型",
+  heartbeat_age_sec: "心跳间隔",
+  mqtt_connected: "MQTT 状态",
+  last_upgrade_status: "升级状态"
+};
+
 telemetryInput.value = JSON.stringify(sampleTelemetry, null, 2);
+troubleshootingInput.value = JSON.stringify(sampleTroubleshooting, null, 2);
 
 document.querySelector("#load-sample-btn").addEventListener("click", () => {
   telemetryInput.value = JSON.stringify(sampleTelemetry, null, 2);
+  troubleshootingInput.value = JSON.stringify(sampleTroubleshooting, null, 2);
   showToast("已载入一条网关心跳超时样本");
 });
 
@@ -106,9 +137,37 @@ document.querySelector("#create-ticket-btn").addEventListener("click", async () 
   }
 });
 
-function readTelemetryPayload() {
+document.querySelector("#troubleshooting-next-btn").addEventListener("click", async () => {
   try {
-    return JSON.parse(telemetryInput.value);
+    const payload = readJsonPayload(troubleshootingInput);
+    if (!payload) return;
+    const result = await postJson("/troubleshooting/next", payload);
+    renderTroubleshooting(result);
+  } catch (error) {
+    showToast(error.message);
+  }
+});
+
+document.querySelector("#troubleshooting-ticket-btn").addEventListener("click", async () => {
+  try {
+    const payload = readJsonPayload(troubleshootingInput);
+    if (!payload) return;
+    const ticket = await postJson("/troubleshooting/create-ticket", payload);
+    showToast(`已创建排障工单：${ticket.ticket_id}`);
+    await refreshTickets();
+    await refreshReport();
+  } catch {
+    showToast("当前排障结果暂不需要建单，或信息还不完整");
+  }
+});
+
+function readTelemetryPayload() {
+  return readJsonPayload(telemetryInput);
+}
+
+function readJsonPayload(input) {
+  try {
+    return JSON.parse(input.value);
   } catch {
     showToast("JSON 格式不正确，请检查输入");
     return null;
@@ -195,6 +254,72 @@ function renderDiagnosis(result) {
     ${result.findings.map(renderFinding).join("")}
     ${renderTicketPayload(result.ticket_payload)}
   `;
+}
+
+function renderTroubleshooting(result) {
+  troubleshootingRoutePill.textContent = `${label(routeNames, result.route)} / ${result.priority}`;
+  troubleshootingRoutePill.classList.remove("muted");
+  troubleshootingOutput.className = "result-grid";
+  troubleshootingOutput.innerHTML = `
+    <div class="summary-strip">
+      <div class="summary-item">
+        <span>识别类型</span>
+        <strong>${escapeHtml(result.issue_type)}</strong>
+      </div>
+      <div class="summary-item">
+        <span>处理路由</span>
+        <strong>${escapeHtml(label(routeNames, result.route))}</strong>
+      </div>
+      <div class="summary-item">
+        <span>置信度</span>
+        <strong>${Math.round(result.confidence_score * 100)}%</strong>
+      </div>
+    </div>
+    ${renderMissingFields(result.missing_fields)}
+    ${renderFollowUpQuestions(result.follow_up_questions)}
+    <div class="finding ${result.priority === "P1" ? "critical" : "major"}">
+      <div class="finding-title">
+        <span>建议动作</span>
+        <span>${escapeHtml(result.priority)}</span>
+      </div>
+      <p>${escapeHtml(result.suggested_action)}</p>
+    </div>
+    ${renderTicketPayload(result.ticket_payload)}
+  `;
+}
+
+function renderMissingFields(fields) {
+  if (!fields.length) {
+    return `<div class="empty-state">关键信息已基本补齐，可以进入知识库检索、规则诊断或转人工判断。</div>`;
+  }
+  return `
+    <div class="field-list">
+      <span>缺失字段</span>
+      ${fields.map((field) => `<b>${escapeHtml(fieldLabels[field] ?? field)}</b>`).join("")}
+    </div>
+  `;
+}
+
+function renderFollowUpQuestions(questions) {
+  if (!questions.length) {
+    return "";
+  }
+  return questions
+    .map(
+      (item, index) => `
+        <div class="finding">
+          <div class="finding-title">
+            <span>追问 ${index + 1}</span>
+            <span>${escapeHtml(fieldLabels[item.field] ?? item.field)}</span>
+          </div>
+          <p>${escapeHtml(item.question)}</p>
+          <div class="option-row">
+            ${item.options.map((option) => `<span>${escapeHtml(option)}</span>`).join("")}
+          </div>
+        </div>
+      `
+    )
+    .join("");
 }
 
 function renderFinding(finding) {
