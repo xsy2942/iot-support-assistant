@@ -109,6 +109,7 @@ class DiagnosticResult(BaseModel):
 
 
 class TroubleshootingRequest(BaseModel):
+    session_id: str | None = None
     question: str = Field(min_length=2)
     issue_type: str | None = None
     device_model: str | None = None
@@ -130,6 +131,7 @@ class TroubleshootingQuestion(BaseModel):
 
 
 class TroubleshootingResult(BaseModel):
+    session_id: str | None = None
     issue_type: str
     route: Route
     priority: Priority

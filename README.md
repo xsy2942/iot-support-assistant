@@ -22,7 +22,8 @@ IoT 设备技术支持知识库与工单助手。
 ## 技术栈
 
 - Python 3 + FastAPI + Uvicorn + Pydantic
-- SQLite 本地工单存储
+- PostgreSQL 工单存储，SQLite 仅作为本地测试兜底
+- Redis 可选保存多轮排障短期上下文
 - HTML / CSS / JavaScript 中文前端
 - CSV / Markdown 领域数据集
 - scikit-learn 本地 TF-IDF baseline 评测
@@ -34,6 +35,26 @@ IoT 设备技术支持知识库与工单助手。
 
 ```powershell
 .\.venv\Scripts\python.exe -m uvicorn ticket_service.main:app --reload --host 127.0.0.1 --port 8000
+```
+
+如需使用 PostgreSQL 作为工单数据库，在 `.env` 中配置：
+
+```text
+TICKET_DB_URL=postgresql://postgres:postgres@localhost:5432/iot_support_assistant
+```
+
+如需保存多轮排障上下文，在 `.env` 中配置：
+
+```text
+TROUBLESHOOTING_REDIS_URL=redis://localhost:6379/0
+TROUBLESHOOTING_SESSION_TTL_SECONDS=1800
+```
+
+连接检查：
+
+```powershell
+.\.venv\Scripts\python.exe scripts\check_postgres.py
+.\.venv\Scripts\python.exe scripts\check_redis.py
 ```
 
 打开：
@@ -118,6 +139,7 @@ D:\pycmexercise\fastgpt-runtime
 
 - [docs/setup.md](docs/setup.md)
 - [docs/model_config.md](docs/model_config.md)
+- [docs/postgresql.md](docs/postgresql.md)
 - [docs/docker_fastgpt_plan.md](docs/docker_fastgpt_plan.md)
 - [docs/fastgpt_workflow.md](docs/fastgpt_workflow.md)
 - [docs/diagnostics.md](docs/diagnostics.md)

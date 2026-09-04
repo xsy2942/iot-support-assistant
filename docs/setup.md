@@ -14,7 +14,9 @@ D:\pycmexercise\agentx2
 - Python 虚拟环境：`D:\pycmexercise\agentx2\.venv`
 - Python 依赖：`D:\pycmexercise\agentx2\.venv\Lib\site-packages`
 - 本地密钥：`D:\pycmexercise\agentx2\.env`
-- 本地工单数据库：`D:\pycmexercise\agentx2\data\generated\tickets.sqlite3`
+- PostgreSQL 工单数据库：通过 `.env` 里的 `TICKET_DB_URL` 连接
+- Redis 排障上下文：通过 `.env` 里的 `TROUBLESHOOTING_REDIS_URL` 连接
+- SQLite 兜底数据库：`D:\pycmexercise\agentx2\data\generated\tickets.sqlite3`
 
 当前项目没有使用 `D:\pycmexercise\ai-recruit-agent-main` 里的环境或工具。
 
@@ -25,7 +27,9 @@ D:\pycmexercise\agentx2
 | Git | 项目版本管理 |
 | Python 3 | 数据生成、评测脚本、FastAPI 工单服务 |
 | FastAPI / Uvicorn | 本地工单服务与中文前端托管 |
-| SQLite | 本地工单与反馈存储 |
+| PostgreSQL | 工单与反馈主存储 |
+| Redis | 多轮排障短期上下文，可选启用 |
+| SQLite | 本地测试或未配置 PostgreSQL 时的兜底存储 |
 | Docker Desktop / Docker Compose | 运行 FastGPT 及其依赖服务 |
 | DeepSeek API | RAG 回答生成 |
 | 阿里云百炼 API | LLM 备用与 Embedding |
@@ -48,6 +52,23 @@ Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass
 ```
 
 ## 启动本项目服务
+
+如果要使用 PostgreSQL，先在 `.env` 中配置：
+
+```text
+TICKET_DB_URL=postgresql://postgres:postgres@localhost:5432/iot_support_assistant
+```
+
+如果 `TICKET_DB_URL` 为空，服务会自动使用 SQLite 兜底，便于测试和离线演示。
+
+如果要保存多轮排障上下文，再配置：
+
+```text
+TROUBLESHOOTING_REDIS_URL=redis://localhost:6379/0
+TROUBLESHOOTING_SESSION_TTL_SECONDS=1800
+```
+
+如果 `TROUBLESHOOTING_REDIS_URL` 为空，排障接口仍可无状态运行。
 
 ```powershell
 .\.venv\Scripts\python.exe -m uvicorn ticket_service.main:app --reload --host 127.0.0.1 --port 8000

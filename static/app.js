@@ -20,6 +20,7 @@ const sampleTelemetry = {
 };
 
 const sampleTroubleshooting = {
+  session_id: null,
   question: "设备连不上平台了，现场人员也说不清楚具体原因。",
   issue_type: "设备离线",
   device_model: null,
@@ -142,6 +143,7 @@ document.querySelector("#troubleshooting-next-btn").addEventListener("click", as
     const payload = readJsonPayload(troubleshootingInput);
     if (!payload) return;
     const result = await postJson("/troubleshooting/next", payload);
+    keepTroubleshootingSession(result.session_id);
     renderTroubleshooting(result);
   } catch (error) {
     showToast(error.message);
@@ -286,6 +288,18 @@ function renderTroubleshooting(result) {
     </div>
     ${renderTicketPayload(result.ticket_payload)}
   `;
+}
+
+function keepTroubleshootingSession(sessionId) {
+  if (!sessionId) {
+    return;
+  }
+  const payload = readJsonPayload(troubleshootingInput);
+  if (!payload) {
+    return;
+  }
+  payload.session_id = sessionId;
+  troubleshootingInput.value = JSON.stringify(payload, null, 2);
 }
 
 function renderMissingFields(fields) {

@@ -5,17 +5,25 @@ import importlib
 from fastapi.testclient import TestClient
 
 
-def test_ticket_feedback_report_flow(tmp_path, monkeypatch):
+def make_client(tmp_path, monkeypatch) -> TestClient:
     monkeypatch.setenv("TICKET_DB_PATH", str(tmp_path / "tickets.sqlite3"))
+    monkeypatch.setenv("TICKET_DB_URL", "")
+    monkeypatch.setenv("TROUBLESHOOTING_REDIS_URL", "")
 
     import ticket_service.main as main
 
     importlib.reload(main)
-    client = TestClient(main.app)
+    return TestClient(main.app)
+
+
+def test_ticket_feedback_report_flow(tmp_path, monkeypatch):
+    client = make_client(tmp_path, monkeypatch)
 
     health = client.get("/health")
     assert health.status_code == 200
     assert health.json()["status"] == "ok"
+    assert health.json()["database"] == "sqlite"
+    assert health.json()["session_memory"] == "stateless"
 
     dashboard = client.get("/")
     assert dashboard.status_code == 200
@@ -61,12 +69,7 @@ def test_ticket_feedback_report_flow(tmp_path, monkeypatch):
 
 
 def test_diagnostics_can_create_ticket(tmp_path, monkeypatch):
-    monkeypatch.setenv("TICKET_DB_PATH", str(tmp_path / "tickets.sqlite3"))
-
-    import ticket_service.main as main
-
-    importlib.reload(main)
-    client = TestClient(main.app)
+    client = make_client(tmp_path, monkeypatch)
 
     sample = {
         "sample_id": "TEL-TEST-001",
@@ -103,12 +106,7 @@ def test_diagnostics_can_create_ticket(tmp_path, monkeypatch):
 
 
 def test_troubleshooting_asks_follow_up_for_incomplete_question(tmp_path, monkeypatch):
-    monkeypatch.setenv("TICKET_DB_PATH", str(tmp_path / "tickets.sqlite3"))
-
-    import ticket_service.main as main
-
-    importlib.reload(main)
-    client = TestClient(main.app)
+    client = make_client(tmp_path, monkeypatch)
 
     response = client.post(
         "/troubleshooting/next",
@@ -128,12 +126,7 @@ def test_troubleshooting_asks_follow_up_for_incomplete_question(tmp_path, monkey
 
 
 def test_troubleshooting_can_escalate_and_create_ticket(tmp_path, monkeypatch):
-    monkeypatch.setenv("TICKET_DB_PATH", str(tmp_path / "tickets.sqlite3"))
-
-    import ticket_service.main as main
-
-    importlib.reload(main)
-    client = TestClient(main.app)
+    client = make_client(tmp_path, monkeypatch)
 
     payload = {
         "question": "GW-200 固件升级失败，客户投诉现场数据丢失。",
