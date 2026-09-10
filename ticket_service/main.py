@@ -8,8 +8,11 @@ from fastapi import FastAPI, HTTPException, Query
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 
+from .agent import SupportAgent
 from .diagnostics import analyze_telemetry
 from .models import (
+    AgentRequest,
+    AgentResponse,
     DiagnosticResult,
     EvalReport,
     Feedback,
@@ -37,6 +40,7 @@ SESSION_TTL_SECONDS = int(os.getenv("TROUBLESHOOTING_SESSION_TTL_SECONDS", "1800
 STATIC_DIR = ROOT / "static"
 store = create_ticket_store(db_url=DB_URL, db_path=DB_PATH)
 session_store = TroubleshootingSessionStore(redis_url=REDIS_URL, ttl_seconds=SESSION_TTL_SECONDS)
+support_agent = SupportAgent()
 db_backend = "postgresql" if DB_URL else "sqlite"
 
 app = FastAPI(
@@ -84,6 +88,11 @@ def create_feedback(payload: FeedbackCreate) -> Feedback:
 @app.get("/eval/report", response_model=EvalReport)
 def get_eval_report() -> EvalReport:
     return store.eval_report()
+
+
+@app.post("/agent/respond", response_model=AgentResponse)
+def respond_with_agent(payload: AgentRequest) -> AgentResponse:
+    return support_agent.respond(payload)
 
 
 @app.post("/diagnostics/analyze", response_model=DiagnosticResult)

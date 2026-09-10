@@ -2,7 +2,7 @@
 
 IoT 设备技术支持知识库与工单助手。
 
-这是一个面向 IoT 设备售后场景的个人项目，重点覆盖设备离线、MQTT 连接超时、网关心跳丢失、固件升级失败、传感器采样异常、温湿度/振动/电压异常等问题。项目资产保留在本仓库内，FastGPT 只作为外部 RAG / Workflow 运行平台。
+这是一个面向 IoT 设备售后场景的个人项目，重点覆盖设备离线、MQTT 连接超时、网关心跳丢失、固件升级失败、传感器采样异常、温湿度/振动/电压异常等问题。当前主链路已经调整为 Python 自研轻量 Agent：先路由，再规划，再调用本地知识库检索、排障树和工单工具，最后做证据校验与转人工判断。FastGPT 只保留为可选外部平台对接，不再是项目主依赖。
 
 ## 当前进度
 
@@ -11,13 +11,13 @@ IoT 设备技术支持知识库与工单助手。
 - 124 条 IoT 售后知识分块：FAQ、错误码说明、历史工单、产品手册。
 - 60 条问答评测集与本地 RAG sanity check。
 - 40 条遥测诊断样例与诊断评测脚本。
+- Python Agent 编排接口：Fast Router -> Structured Planner -> Knowledge Search -> Capability Executor -> Verifier。
+- 本地混合检索：基于 `knowledge_chunks.csv` 做中文字符 n-gram 向量检索 + 设备型号/错误码关键词加权。
 - FastAPI 工单服务：创建工单、查看工单、更新状态、记录反馈、输出评测报告。
 - 中文前端 Dashboard：设备诊断、转人工工单、反馈和指标展示。
 - 轻量多轮排障：用户描述不完整时先追问设备型号、错误码、在线状态、网络类型等关键信息。
 - DeepSeek、阿里云百炼、Tavily 接入检查脚本。
-- FastGPT 独立 Docker runtime，已创建 IoT 知识库并导入 124 条分块。
-- FastGPT 应用 `IoT Support Copilot`，已连接 IoT 知识库与 DeepSeek 回答节点。
-- 端到端演示脚本：FastGPT 检索 -> 低置信度/高风险判断 -> 本地工单创建。
+- FastGPT 独立 Docker runtime 可选保留，用于对照演示外部 RAG/Workflow 平台如何接入本项目工单服务。
 
 ## 技术栈
 
@@ -26,10 +26,10 @@ IoT 设备技术支持知识库与工单助手。
 - Redis 可选保存多轮排障短期上下文
 - HTML / CSS / JavaScript 中文前端
 - CSV / Markdown 领域数据集
-- scikit-learn 本地 TF-IDF baseline 评测
+- scikit-learn 本地 TF-IDF 混合检索与 baseline 评测
 - DeepSeek / 百炼 OpenAI-compatible API
 - Tavily Web Search API
-- Docker Compose 运行 FastGPT、MongoDB、Redis、PostgreSQL/pgvector、MinIO、AIProxy
+- Docker Compose 可选运行 FastGPT、MongoDB、Redis、PostgreSQL/pgvector、MinIO、AIProxy
 
 ## 本地启动
 
@@ -65,6 +65,7 @@ TROUBLESHOOTING_SESSION_TTL_SECONDS=1800
 
 多轮排障接口：
 
+- `POST /agent/respond`：Python Agent 主入口，负责路由、规划、知识库检索、排障追问、转人工草稿和证据校验
 - `POST /troubleshooting/next`：根据已知信息生成下一步追问或处理建议
 - `POST /troubleshooting/create-ticket`：高风险或建议复核时创建工单
 
@@ -90,17 +91,43 @@ TROUBLESHOOTING_SESSION_TTL_SECONDS=1800
 
 ```powershell
 .\.venv\Scripts\python.exe eval\run_eval.py
+.\.venv\Scripts\python.exe eval\run_agent_eval.py
 .\.venv\Scripts\python.exe eval\run_diagnostic_eval.py
 ```
 
 报告输出：
 
 - `reports/eval_report.json`
+- `reports/agent_eval_report.json`
 - `reports/diagnostic_eval_report.json`
 
-当前本地评测是模拟数据 sanity check，指标偏理想；最终简历数字建议以 FastGPT 接入后真实 60 条问答复测结果为准。
+当前本地评测是模拟数据 sanity check，指标偏理想；最终简历数字建议以本地 Agent 跑完 60 条问答和 40 条诊断用例后的结果为准。
 
-## FastGPT 接入
+## Agent 主链路
+
+当前项目不把模型输出直接当作任务完成，而是把一次用户请求拆成结构化执行链：
+
+1. `Fast Router`：判断问题是信息不足、知识库可答、规则诊断还是需要转人工。
+2. `Structured Planner`：生成可执行步骤，避免模型随意发挥。
+3. `Knowledge Search`：在 `data/processed/knowledge_chunks.csv` 中做本地混合检索。
+4. `Capability Executor`：调用知识库检索、轻量排障树和工单草稿工具。
+5. `Verifier`：检查是否有引用证据、是否命中高风险词、最终状态是 `COMPLETE / PARTIAL / UNKNOWN / INCOMPLETE`。
+
+示例：
+
+```powershell
+Invoke-RestMethod -Method Post -Uri http://127.0.0.1:8000/agent/respond -ContentType "application/json" -Body '{
+  "question": "GW-200 报 E104 且 MQTT 连接超时，应该怎么排查？",
+  "device_model": "GW-200",
+  "error_code": "E104",
+  "online_status": "离线",
+  "network_type": "4G",
+  "mqtt_connected": false,
+  "heartbeat_age_sec": 900
+}'
+```
+
+## FastGPT 可选接入
 
 FastGPT runtime 放在：
 
@@ -108,7 +135,7 @@ FastGPT runtime 放在：
 D:\pycmexercise\fastgpt-runtime
 ```
 
-本仓库不提交 FastGPT 源码。当前 FastGPT 已完成：
+本仓库不提交 FastGPT 源码。FastGPT 可以作为外部 RAG / Workflow 平台对照演示：
 
 - Web 地址：[http://localhost:3000](http://localhost:3000)
 - 知识库：`IoT 设备售后知识库`
@@ -138,6 +165,7 @@ D:\pycmexercise\fastgpt-runtime
 更多说明见：
 
 - [docs/setup.md](docs/setup.md)
+- [docs/agent_architecture.md](docs/agent_architecture.md)
 - [docs/model_config.md](docs/model_config.md)
 - [docs/postgresql.md](docs/postgresql.md)
 - [docs/docker_fastgpt_plan.md](docs/docker_fastgpt_plan.md)

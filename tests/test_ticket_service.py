@@ -148,3 +148,59 @@ def test_troubleshooting_can_escalate_and_create_ticket(tmp_path, monkeypatch):
     ticket = client.post("/troubleshooting/create-ticket", json=payload)
     assert ticket.status_code == 200
     assert ticket.json()["category"] == "固件升级失败"
+
+
+def test_agent_clarifies_incomplete_question(tmp_path, monkeypatch):
+    client = make_client(tmp_path, monkeypatch)
+
+    response = client.post("/agent/respond", json={"question": "设备连不上平台了，现场也说不清楚。"})
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["route"] == "clarify"
+    assert body["status"] == "INCOMPLETE"
+    assert body["follow_up_questions"]
+    assert "设备型号" in body["answer"]
+
+
+def test_agent_answers_with_local_knowledge_evidence(tmp_path, monkeypatch):
+    client = make_client(tmp_path, monkeypatch)
+
+    response = client.post(
+        "/agent/respond",
+        json={
+            "question": "GW-200 报 E104 且 MQTT 连接超时，平台显示心跳 15 分钟没有上报，应该怎么排查？",
+            "device_model": "GW-200",
+            "error_code": "E104",
+            "online_status": "离线",
+            "network_type": "4G",
+            "mqtt_connected": False,
+            "heartbeat_age_sec": 900,
+        },
+    )
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["route"] == "rag_answer"
+    assert body["evidence"]
+    assert body["plan"][0]["name"] == "Fast Router"
+    assert "引用来源" in body["answer"]
+
+
+def test_agent_escalates_high_risk_question(tmp_path, monkeypatch):
+    client = make_client(tmp_path, monkeypatch)
+
+    response = client.post(
+        "/agent/respond",
+        json={
+            "question": "客户要求赔偿停机损失，现场设备冒烟并且历史数据全部丢失。",
+            "device_model": "GW-200",
+            "error_code": "E104",
+        },
+    )
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["route"] == "handoff"
+    assert body["status"] == "PARTIAL"
+    assert body["ticket_payload"] is not None

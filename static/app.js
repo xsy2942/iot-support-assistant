@@ -35,6 +35,28 @@ const sampleTroubleshooting = {
   risk_signal: null
 };
 
+const sampleAgent = {
+  question: "GW-200 报 E104 且 MQTT 连接超时，平台显示心跳已经 15 分钟没有上报，应该怎么排查？",
+  device_model: "GW-200",
+  error_code: "E104",
+  online_status: "离线",
+  network_type: "4G",
+  mqtt_connected: false,
+  heartbeat_age_sec: 900,
+  top_k: 3
+};
+
+const sampleRiskAgent = {
+  question: "客户要求赔偿停机损失，现场设备冒烟并且历史数据全部丢失，应该怎么处理？",
+  device_model: "GW-200",
+  error_code: "E104",
+  risk_signal: "客户投诉与安全风险",
+  top_k: 3
+};
+
+const agentInput = document.querySelector("#agent-input");
+const agentOutput = document.querySelector("#agent-output");
+const agentRoutePill = document.querySelector("#agent-route-pill");
 const telemetryInput = document.querySelector("#telemetry-input");
 const diagnosisOutput = document.querySelector("#diagnosis-output");
 const troubleshootingInput = document.querySelector("#troubleshooting-input");
@@ -69,7 +91,17 @@ const severityNames = {
 const routeNames = {
   direct_answer: "直接回答",
   review: "建议复核",
-  handoff: "转人工"
+  handoff: "转人工",
+  clarify: "先追问",
+  rag_answer: "知识库回答",
+  diagnostic: "规则诊断"
+};
+
+const agentStatusNames = {
+  COMPLETE: "已完成",
+  PARTIAL: "部分完成",
+  UNKNOWN: "未知",
+  INCOMPLETE: "信息不完整"
 };
 
 const statusNames = {
@@ -103,15 +135,33 @@ const fieldLabels = {
 
 telemetryInput.value = JSON.stringify(sampleTelemetry, null, 2);
 troubleshootingInput.value = JSON.stringify(sampleTroubleshooting, null, 2);
+agentInput.value = JSON.stringify(sampleAgent, null, 2);
 
 document.querySelector("#load-sample-btn").addEventListener("click", () => {
   telemetryInput.value = JSON.stringify(sampleTelemetry, null, 2);
   troubleshootingInput.value = JSON.stringify(sampleTroubleshooting, null, 2);
+  agentInput.value = JSON.stringify(sampleAgent, null, 2);
   showToast("已载入一条网关心跳超时样本");
 });
 
 document.querySelector("#refresh-btn").addEventListener("click", () => {
   refreshAll();
+});
+
+document.querySelector("#agent-run-btn").addEventListener("click", async () => {
+  try {
+    const payload = readJsonPayload(agentInput);
+    if (!payload) return;
+    const result = await postJson("/agent/respond", payload);
+    renderAgent(result);
+  } catch (error) {
+    showToast(error.message);
+  }
+});
+
+document.querySelector("#agent-risk-btn").addEventListener("click", () => {
+  agentInput.value = JSON.stringify(sampleRiskAgent, null, 2);
+  showToast("已载入一条高风险转人工问题");
 });
 
 document.querySelector("#analyze-btn").addEventListener("click", async () => {
@@ -288,6 +338,80 @@ function renderTroubleshooting(result) {
     </div>
     ${renderTicketPayload(result.ticket_payload)}
   `;
+}
+
+function renderAgent(result) {
+  agentRoutePill.textContent = `${label(routeNames, result.route)} / ${label(agentStatusNames, result.status)}`;
+  agentRoutePill.classList.remove("muted");
+  agentOutput.className = "result-grid";
+  agentOutput.innerHTML = `
+    <div class="summary-strip">
+      <div class="summary-item">
+        <span>处理路由</span>
+        <strong>${escapeHtml(label(routeNames, result.route))}</strong>
+      </div>
+      <div class="summary-item">
+        <span>执行状态</span>
+        <strong>${escapeHtml(label(agentStatusNames, result.status))}</strong>
+      </div>
+      <div class="summary-item">
+        <span>置信度</span>
+        <strong>${Math.round(result.confidence_score * 100)}%</strong>
+      </div>
+    </div>
+    <div class="finding">
+      <div class="finding-title">
+        <span>Agent 回答</span>
+        <span>${escapeHtml(result.route)}</span>
+      </div>
+      <p>${escapeHtml(result.answer)}</p>
+    </div>
+    ${renderAgentPlan(result.plan)}
+    ${renderFollowUpQuestions(result.follow_up_questions)}
+    ${renderAgentEvidence(result.evidence)}
+    ${renderTicketPayload(result.ticket_payload)}
+  `;
+}
+
+function renderAgentPlan(plan) {
+  if (!plan.length) {
+    return "";
+  }
+  return `
+    <div class="agent-plan">
+      ${plan
+        .map(
+          (step) => `
+            <div class="plan-step">
+              <b>${escapeHtml(step.index)}. ${escapeHtml(step.name)}</b>
+              <span>${escapeHtml(step.status)}</span>
+              <p>${escapeHtml(step.reason)}</p>
+            </div>
+          `
+        )
+        .join("")}
+    </div>
+  `;
+}
+
+function renderAgentEvidence(evidence) {
+  if (!evidence.length) {
+    return `<div class="empty-state">没有可引用的知识库证据。</div>`;
+  }
+  return evidence
+    .map(
+      (item) => `
+        <div class="finding">
+          <div class="finding-title">
+            <span>${escapeHtml(item.source_id)} · ${escapeHtml(item.title)}</span>
+            <span>${Math.round(item.score * 100)}%</span>
+          </div>
+          <p>来源：${escapeHtml(item.source_type)} / ${escapeHtml(item.metadata.issue_type || "未分类")}</p>
+          <p>${escapeHtml(item.quote)}</p>
+        </div>
+      `
+    )
+    .join("");
 }
 
 function keepTroubleshootingSession(sessionId) {

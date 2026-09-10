@@ -18,6 +18,7 @@
         </div>
         <nav class="nav-list" aria-label="Main navigation">
           <a class="nav-item active" href="#overview">项目总览</a>
+          <a class="nav-item" href="#agent">Agent 编排</a>
           <a class="nav-item" href="#troubleshooting">多轮排障</a>
           <a class="nav-item" href="#diagnostics">设备诊断</a>
           <a class="nav-item" href="#tickets">工单闭环</a>
@@ -62,6 +63,36 @@
             <strong id="ticket-count">-</strong>
             <span class="metric-hint" id="feedback-rate">等待服务返回</span>
           </article>
+        </section>
+
+        <section class="workspace" id="agent">
+          <div class="panel diagnostic-panel">
+            <div class="panel-heading">
+              <div>
+                <p class="eyebrow">Python Agent</p>
+                <h2>路由、规划、检索与校验</h2>
+              </div>
+              <span class="pill">POST /agent/respond</span>
+            </div>
+            <textarea id="agent-input" class="compact-textarea" spellcheck="false"></textarea>
+            <div class="button-row">
+              <button class="primary-button" id="agent-run-btn" type="button">运行 Agent</button>
+              <button class="ghost-button" id="agent-risk-btn" type="button">载入高风险问题</button>
+            </div>
+          </div>
+
+          <div class="panel result-panel">
+            <div class="panel-heading">
+              <div>
+                <p class="eyebrow">执行结果</p>
+                <h2>计划、证据与回答</h2>
+              </div>
+              <span class="pill muted" id="agent-route-pill">未运行</span>
+            </div>
+            <div id="agent-output" class="empty-state">
+              输入用户问题后，Agent 会执行 Fast Router、Structured Planner、本地混合检索、工具调用和证据校验。
+            </div>
+          </div>
         </section>
 
         <section class="workspace" id="troubleshooting">

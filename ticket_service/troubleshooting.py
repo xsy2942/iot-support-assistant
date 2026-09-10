@@ -113,7 +113,19 @@ TREES = (
     ),
 )
 
-HIGH_RISK_WORDS = ("冒烟", "烧毁", "赔偿", "投诉", "安全事故", "数据丢失", "漏电", "起火")
+HIGH_RISK_WORDS = (
+    "冒烟",
+    "烧毁",
+    "赔偿",
+    "投诉",
+    "安全事故",
+    "数据丢失",
+    "漏电",
+    "起火",
+    "法律责任",
+    "责任结论",
+    "X999",
+)
 
 
 def guide_troubleshooting(payload: TroubleshootingRequest) -> TroubleshootingResult:

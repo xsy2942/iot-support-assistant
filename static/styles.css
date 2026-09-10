@@ -348,7 +348,8 @@ textarea:focus {
 }
 
 .field-list,
-.option-row {
+.option-row,
+.agent-plan {
   display: flex;
   flex-wrap: wrap;
   gap: 8px;
@@ -378,6 +379,41 @@ textarea:focus {
 
 .option-row {
   margin-top: 10px;
+}
+
+.agent-plan {
+  align-items: stretch;
+}
+
+.plan-step {
+  flex: 1 1 170px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 10px;
+  background: #fbfdfc;
+}
+
+.plan-step b,
+.plan-step span {
+  display: block;
+}
+
+.plan-step b {
+  font-size: 13px;
+}
+
+.plan-step span {
+  margin-top: 5px;
+  color: var(--primary-strong);
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.plan-step p {
+  margin: 7px 0 0;
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.45;
 }
 
 .empty-state,

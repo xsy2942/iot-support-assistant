@@ -25,6 +25,20 @@ class Route(str, Enum):
     handoff = "handoff"
 
 
+class AgentRoute(str, Enum):
+    clarify = "clarify"
+    rag_answer = "rag_answer"
+    diagnostic = "diagnostic"
+    handoff = "handoff"
+
+
+class AgentStatus(str, Enum):
+    complete = "COMPLETE"
+    partial = "PARTIAL"
+    unknown = "UNKNOWN"
+    incomplete = "INCOMPLETE"
+
+
 class TicketCreate(BaseModel):
     question: str = Field(min_length=2)
     device_model: str | None = None
@@ -140,4 +154,50 @@ class TroubleshootingResult(BaseModel):
     follow_up_questions: list[TroubleshootingQuestion] = Field(default_factory=list)
     collected_facts: dict[str, str] = Field(default_factory=dict)
     suggested_action: str
+    ticket_payload: TicketCreate | None = None
+
+
+class AgentRequest(BaseModel):
+    question: str = Field(min_length=2)
+    session_id: str | None = None
+    issue_type: str | None = None
+    device_model: str | None = None
+    firmware_version: str | None = None
+    error_code: str | None = None
+    online_status: str | None = None
+    indicator_light: str | None = None
+    network_type: str | None = None
+    heartbeat_age_sec: int | None = Field(default=None, ge=0)
+    mqtt_connected: bool | None = None
+    last_upgrade_status: str | None = None
+    tried_steps: list[str] = Field(default_factory=list)
+    risk_signal: str | None = None
+    top_k: int = Field(default=3, ge=1, le=8)
+
+
+class AgentStep(BaseModel):
+    index: int
+    name: str
+    tool: str
+    reason: str
+    status: str = "pending"
+
+
+class AgentEvidence(BaseModel):
+    source_id: str
+    source_type: str
+    title: str
+    score: float = Field(ge=0)
+    quote: str
+    metadata: dict[str, str] = Field(default_factory=dict)
+
+
+class AgentResponse(BaseModel):
+    route: AgentRoute
+    status: AgentStatus
+    answer: str
+    confidence_score: float = Field(ge=0, le=1)
+    plan: list[AgentStep]
+    evidence: list[AgentEvidence] = Field(default_factory=list)
+    follow_up_questions: list[TroubleshootingQuestion] = Field(default_factory=list)
     ticket_payload: TicketCreate | None = None
