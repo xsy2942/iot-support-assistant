@@ -381,8 +381,14 @@ textarea:focus {
   margin-top: 10px;
 }
 
-.agent-plan {
+.agent-plan,
+.agent-stream {
   align-items: stretch;
+}
+
+.agent-stream {
+  display: grid;
+  gap: 8px;
 }
 
 .plan-step {

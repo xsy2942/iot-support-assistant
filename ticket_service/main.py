@@ -1,15 +1,19 @@
 from __future__ import annotations
 
 import os
+import json
 from pathlib import Path
+from typing import Any
 
 from dotenv import load_dotenv
 from fastapi import FastAPI, HTTPException, Query
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 
 from .agent import SupportAgent
+from .agent_memory import AgentMemoryStore
 from .diagnostics import analyze_telemetry
+from .mcp import McpToolServer
 from .models import (
     AgentRequest,
     AgentResponse,
@@ -36,11 +40,15 @@ load_dotenv(ROOT / ".env")
 DB_URL = os.getenv("TICKET_DB_URL")
 DB_PATH = os.getenv("TICKET_DB_PATH", "./data/generated/tickets.sqlite3")
 REDIS_URL = os.getenv("TROUBLESHOOTING_REDIS_URL")
+AGENT_MEMORY_REDIS_URL = os.getenv("AGENT_MEMORY_REDIS_URL", REDIS_URL or "")
 SESSION_TTL_SECONDS = int(os.getenv("TROUBLESHOOTING_SESSION_TTL_SECONDS", "1800"))
+AGENT_MEMORY_TTL_SECONDS = int(os.getenv("AGENT_MEMORY_TTL_SECONDS", str(SESSION_TTL_SECONDS)))
 STATIC_DIR = ROOT / "static"
 store = create_ticket_store(db_url=DB_URL, db_path=DB_PATH)
 session_store = TroubleshootingSessionStore(redis_url=REDIS_URL, ttl_seconds=SESSION_TTL_SECONDS)
 support_agent = SupportAgent()
+agent_memory_store = AgentMemoryStore(redis_url=AGENT_MEMORY_REDIS_URL, ttl_seconds=AGENT_MEMORY_TTL_SECONDS)
+mcp_server = McpToolServer(agent=support_agent, ticket_store=store, memory_store=agent_memory_store)
 db_backend = "postgresql" if DB_URL else "sqlite"
 
 app = FastAPI(
@@ -59,7 +67,12 @@ def dashboard() -> FileResponse:
 
 @app.get("/health")
 def health() -> dict[str, str]:
-    return {"status": "ok", "database": db_backend, "session_memory": session_store.backend}
+    return {
+        "status": "ok",
+        "database": db_backend,
+        "session_memory": session_store.backend,
+        "agent_memory": agent_memory_store.backend,
+    }
 
 
 @app.post("/tickets/create", response_model=Ticket)
@@ -92,7 +105,48 @@ def get_eval_report() -> EvalReport:
 
 @app.post("/agent/respond", response_model=AgentResponse)
 def respond_with_agent(payload: AgentRequest) -> AgentResponse:
-    return support_agent.respond(payload)
+    merged_payload = agent_memory_store.merge(payload)
+    response = support_agent.respond(merged_payload)
+    response.memory_facts = agent_memory_store.facts(merged_payload.session_id) or response.memory_facts
+    agent_memory_store.save_turn(merged_payload, response)
+    response.memory_facts = agent_memory_store.facts(merged_payload.session_id)
+    return response
+
+
+@app.get("/agent/respond/stream")
+def stream_agent_response(
+    question: str,
+    session_id: str | None = None,
+    device_model: str | None = None,
+    error_code: str | None = None,
+    network_type: str | None = None,
+    top_k: int = Query(default=3, ge=1, le=8),
+) -> StreamingResponse:
+    payload = AgentRequest(
+        question=question,
+        session_id=session_id,
+        device_model=device_model,
+        error_code=error_code,
+        network_type=network_type,
+        top_k=top_k,
+    )
+
+    def events():
+        for event_name, data in [
+            ("step", {"name": "Fast Router", "status": "running"}),
+            ("step", {"name": "Structured Planner", "status": "running"}),
+            ("step", {"name": "Knowledge Search", "status": "running"}),
+        ]:
+            yield _sse(event_name, data)
+        response = respond_with_agent(payload)
+        yield _sse("result", response.model_dump())
+
+    return StreamingResponse(events(), media_type="text/event-stream")
+
+
+@app.post("/mcp")
+def mcp_endpoint(payload: dict[str, Any]) -> dict[str, Any]:
+    return mcp_server.handle(payload)
 
 
 @app.post("/diagnostics/analyze", response_model=DiagnosticResult)
@@ -124,3 +178,7 @@ def create_ticket_from_troubleshooting(payload: TroubleshootingRequest) -> Ticke
     if result.ticket_payload is None:
         raise HTTPException(status_code=400, detail="Troubleshooting result does not require a ticket")
     return store.create_ticket(result.ticket_payload)
+
+
+def _sse(event_name: str, data: Any) -> str:
+    return f"event: {event_name}\ndata: {json.dumps(data, ensure_ascii=False, default=str)}\n\n"

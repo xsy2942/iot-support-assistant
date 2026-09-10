@@ -16,7 +16,7 @@
 用户问题
   -> Fast Router
   -> Structured Planner
-  -> Knowledge Search / Troubleshooting Tree / Ticket Draft
+  -> Memory / Knowledge Search / Troubleshooting Tree / Ticket Draft
   -> Verifier
   -> 回答 / 追问 / 转人工
 ```
@@ -59,8 +59,22 @@ Fast Router -> Structured Planner -> Knowledge Search -> Capability Executor -> 
 - 向量检索：使用 `TfidfVectorizer(analyzer="char_wb", ngram_range=(2, 4))`，适合中文短文本和错误码混合场景。
 - 关键词加权：对 `GW-200`、`E104`、`MQTT` 等设备型号、错误码、协议词做额外加分。
 - 融合排序：向量分数占 72%，关键词分数占 28%。
+- 父子块动态路由：先在子块级别召回，再按父块聚合去重，证据里保留 `parent_id -> child_id` 路径。
 
 这不是大型生产级向量库，但适合个人项目展示“分块、检索、引用、评测”的完整 RAG 思路。后续可以替换成 PostgreSQL + pgvector。
+
+### Agent Memory
+
+位置：`ticket_service/agent_memory.py`
+
+作用：保存同一 `session_id` 下的短期上下文。比如用户第一轮只说设备型号 `GW-200`，第二轮补充错误码 `E104`，第三轮补充网络是 `4G`，Agent 会把这些字段合并后再判断路由。
+
+当前策略：
+
+- 默认使用进程内 memory，方便本地演示。
+- 配置 `AGENT_MEMORY_REDIS_URL` 后使用 Redis。
+- 保存设备型号、固件版本、错误码、在线状态、网络类型、MQTT 状态等结构化事实。
+- 保存最近 20 轮对话摘要，避免会话无限膨胀。
 
 ### Capability Executor
 
@@ -73,6 +87,26 @@ Fast Router -> Structured Planner -> Knowledge Search -> Capability Executor -> 
 - 转人工工单草稿生成
 
 这里的“工具调用”是确定性的 Python 函数调用，不是让 LLM 自己随便调用外部接口。
+
+### MCP-style Tool Server
+
+位置：`ticket_service/mcp.py`
+
+作用：把项目里的能力包装成 JSON-RPC 工具入口，便于模拟 MCP 工具发现和调用。
+
+当前支持：
+
+- `initialize`：返回服务信息和工具能力。
+- `tools/list`：列出可调用工具。
+- `tools/call`：调用 `agent.respond`、`knowledge.search`、`tickets.create`。
+
+这让项目从“后端接口”更进一步变成“Agent 可调用工具集”。当前是轻量 MCP-style 实现，不声称已经做了完整外部 MCP Server 发布、鉴权和多客户端连接管理。
+
+### SSE Streaming
+
+位置：`ticket_service/main.py`
+
+作用：提供 `GET /agent/respond/stream`。前端可以先收到 `step` 事件，再收到最终 `result` 事件，用来演示 Agent 不是一次性黑盒返回，而是有可观察的执行过程。
 
 ### Verifier
 
@@ -101,9 +135,8 @@ FastGPT 现在不是主链路。它只作为可选外部平台：
 
 ## 当前边界
 
-当前项目已经实现轻量 Agent 编排，但还没有实现以下重型能力：
+当前项目已经实现轻量 Agent 编排、会话记忆、父子块路由、SSE 流式输出和 MCP-style 工具入口，但还没有实现以下重型能力：
 
-- 真实 MCP 协议服务
 - HMAC 工具审批
 - Kafka 异步任务队列
 - Neo4j 知识图谱

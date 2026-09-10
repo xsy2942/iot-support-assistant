@@ -193,6 +193,7 @@ class AgentEvidence(BaseModel):
 
 
 class AgentResponse(BaseModel):
+    session_id: str | None = None
     route: AgentRoute
     status: AgentStatus
     answer: str
@@ -200,4 +201,5 @@ class AgentResponse(BaseModel):
     plan: list[AgentStep]
     evidence: list[AgentEvidence] = Field(default_factory=list)
     follow_up_questions: list[TroubleshootingQuestion] = Field(default_factory=list)
+    memory_facts: dict[str, str] = Field(default_factory=dict)
     ticket_payload: TicketCreate | None = None

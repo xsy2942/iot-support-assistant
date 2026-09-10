@@ -12,7 +12,10 @@ IoT 设备技术支持知识库与工单助手。
 - 60 条问答评测集与本地 RAG sanity check。
 - 40 条遥测诊断样例与诊断评测脚本。
 - Python Agent 编排接口：Fast Router -> Structured Planner -> Knowledge Search -> Capability Executor -> Verifier。
-- 本地混合检索：基于 `knowledge_chunks.csv` 做中文字符 n-gram 向量检索 + 设备型号/错误码关键词加权。
+- 本地混合检索：基于 `knowledge_chunks.csv` 做中文字符 n-gram 向量检索 + 设备型号/错误码关键词加权，并支持父子块聚合去重。
+- Agent 会话记忆：通过 `session_id` 合并多轮设备型号、错误码、网络状态等上下文字段，Redis 可选持久化短期记忆。
+- MCP 工具入口：提供 MCP-style JSON-RPC 的 `initialize`、`tools/list`、`tools/call`，把 Agent 回答、知识库检索和工单创建包装成工具。
+- SSE 流式输出：提供 `GET /agent/respond/stream`，前端可逐步接收路由、规划、检索和最终结果事件。
 - FastAPI 工单服务：创建工单、查看工单、更新状态、记录反馈、输出评测报告。
 - 中文前端 Dashboard：设备诊断、转人工工单、反馈和指标展示。
 - 轻量多轮排障：用户描述不完整时先追问设备型号、错误码、在线状态、网络类型等关键信息。
@@ -48,6 +51,8 @@ TICKET_DB_URL=postgresql://postgres:postgres@localhost:5432/iot_support_assistan
 ```text
 TROUBLESHOOTING_REDIS_URL=redis://localhost:6379/0
 TROUBLESHOOTING_SESSION_TTL_SECONDS=1800
+AGENT_MEMORY_REDIS_URL=redis://localhost:6379/0
+AGENT_MEMORY_TTL_SECONDS=1800
 ```
 
 连接检查：
@@ -66,6 +71,8 @@ TROUBLESHOOTING_SESSION_TTL_SECONDS=1800
 多轮排障接口：
 
 - `POST /agent/respond`：Python Agent 主入口，负责路由、规划、知识库检索、排障追问、转人工草稿和证据校验
+- `GET /agent/respond/stream`：SSE 流式 Agent 响应，返回 `step` 和 `result` 事件
+- `POST /mcp`：MCP-style JSON-RPC 工具入口，支持工具发现与调用
 - `POST /troubleshooting/next`：根据已知信息生成下一步追问或处理建议
 - `POST /troubleshooting/create-ticket`：高风险或建议复核时创建工单
 
@@ -112,6 +119,22 @@ TROUBLESHOOTING_SESSION_TTL_SECONDS=1800
 3. `Knowledge Search`：在 `data/processed/knowledge_chunks.csv` 中做本地混合检索。
 4. `Capability Executor`：调用知识库检索、轻量排障树和工单草稿工具。
 5. `Verifier`：检查是否有引用证据、是否命中高风险词、最终状态是 `COMPLETE / PARTIAL / UNKNOWN / INCOMPLETE`。
+
+Agent 记忆策略：
+
+- 请求携带 `session_id` 时，系统会合并历史上下文字段。
+- 默认使用进程内 memory，适合本地演示。
+- 配置 `AGENT_MEMORY_REDIS_URL` 后，使用 Redis 保存短期会话记忆和最近 20 轮对话摘要。
+
+MCP 工具调用示例：
+
+```powershell
+Invoke-RestMethod -Method Post -Uri http://127.0.0.1:8000/mcp -ContentType "application/json" -Body '{
+  "jsonrpc": "2.0",
+  "id": 1,
+  "method": "tools/list"
+}'
+```
 
 示例：
 

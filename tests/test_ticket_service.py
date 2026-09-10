@@ -204,3 +204,93 @@ def test_agent_escalates_high_risk_question(tmp_path, monkeypatch):
     assert body["route"] == "handoff"
     assert body["status"] == "PARTIAL"
     assert body["ticket_payload"] is not None
+
+
+def test_agent_memory_merges_session_context(tmp_path, monkeypatch):
+    client = make_client(tmp_path, monkeypatch)
+
+    first = client.post(
+        "/agent/respond",
+        json={
+            "session_id": "memory-test",
+            "question": "这台设备连不上平台了。",
+            "device_model": "GW-200",
+            "online_status": "离线",
+        },
+    )
+    assert first.status_code == 200
+
+    second = client.post(
+        "/agent/respond",
+        json={
+            "session_id": "memory-test",
+            "question": "刚才那台设备又看到 E104，MQTT 也连不上。",
+            "error_code": "E104",
+            "mqtt_connected": False,
+        },
+    )
+
+    assert second.status_code == 200
+    body = second.json()
+    assert body["session_id"] == "memory-test"
+    assert body["memory_facts"]["device_model"] == "GW-200"
+    assert body["memory_facts"]["error_code"] == "E104"
+
+
+def test_agent_evidence_contains_parent_child_route(tmp_path, monkeypatch):
+    client = make_client(tmp_path, monkeypatch)
+
+    response = client.post(
+        "/agent/respond",
+        json={
+            "question": "GW-200 报 E104 且 MQTT 连接超时，应该怎么排查？",
+            "device_model": "GW-200",
+            "error_code": "E104",
+        },
+    )
+
+    assert response.status_code == 200
+    evidence = response.json()["evidence"]
+    assert evidence
+    assert "parent_id" in evidence[0]["metadata"]
+    assert "route_path" in evidence[0]["metadata"]
+
+
+def test_agent_sse_stream_returns_result(tmp_path, monkeypatch):
+    client = make_client(tmp_path, monkeypatch)
+
+    response = client.get(
+        "/agent/respond/stream",
+        params={"question": "GW-200 报 E104 且 MQTT 连接超时，应该怎么排查？", "device_model": "GW-200", "error_code": "E104"},
+    )
+
+    assert response.status_code == 200
+    assert "event: step" in response.text
+    assert "event: result" in response.text
+
+
+def test_mcp_lists_and_calls_agent_tool(tmp_path, monkeypatch):
+    client = make_client(tmp_path, monkeypatch)
+
+    tools = client.post("/mcp", json={"jsonrpc": "2.0", "id": 1, "method": "tools/list"})
+    assert tools.status_code == 200
+    assert tools.json()["result"]["tools"][0]["name"] == "agent.respond"
+
+    call = client.post(
+        "/mcp",
+        json={
+            "jsonrpc": "2.0",
+            "id": 2,
+            "method": "tools/call",
+            "params": {
+                "name": "knowledge.search",
+                "arguments": {"query": "GW-200 E104 MQTT 连接超时", "top_k": 2},
+            },
+        },
+    )
+
+    assert call.status_code == 200
+    body = call.json()
+    assert body["jsonrpc"] == "2.0"
+    assert body["result"]["content"][0]["type"] == "text"
+    assert "parent_id" in body["result"]["content"][0]["text"]

@@ -26,6 +26,7 @@ class SupportAgent:
         troubleshooting = guide_troubleshooting(self._to_troubleshooting_request(request, risk_signal))
         evidence_hits = self.knowledge_base.search(request.question, top_k=request.top_k)
         plan = self._plan(request, risk_signal, troubleshooting.missing_fields, evidence_hits)
+        memory_facts = self._memory_facts(request)
 
         if risk_signal:
             ticket_payload = self._ticket_payload(
@@ -36,6 +37,7 @@ class SupportAgent:
                 action="涉及投诉、安全事故、赔偿或数据丢失，建议转人工并保留现场证据。",
             )
             return AgentResponse(
+                session_id=request.session_id,
                 route=AgentRoute.handoff,
                 status=AgentStatus.partial,
                 answer="该问题包含高风险信号，系统不直接给出最终处理结论。建议转人工，并收集现场照片、设备日志、平台操作记录和客户诉求。",
@@ -43,6 +45,7 @@ class SupportAgent:
                 plan=self._finish_plan(plan, "handoff"),
                 evidence=self._evidence(evidence_hits),
                 follow_up_questions=troubleshooting.follow_up_questions,
+                memory_facts=memory_facts,
                 ticket_payload=ticket_payload,
             )
 
@@ -52,6 +55,7 @@ class SupportAgent:
                 question.question for question in questions
             )
             return AgentResponse(
+                session_id=request.session_id,
                 route=AgentRoute.clarify,
                 status=AgentStatus.incomplete,
                 answer=answer,
@@ -59,10 +63,12 @@ class SupportAgent:
                 plan=self._finish_plan(plan, "clarify"),
                 evidence=self._evidence(evidence_hits[:1]),
                 follow_up_questions=questions,
+                memory_facts=memory_facts,
             )
 
         if evidence_hits and evidence_hits[0].score >= 0.12:
             return AgentResponse(
+                session_id=request.session_id,
                 route=AgentRoute.rag_answer,
                 status=AgentStatus.complete if evidence_hits[0].score >= 0.25 else AgentStatus.partial,
                 answer=self._build_rag_answer(request.question, evidence_hits),
@@ -70,6 +76,7 @@ class SupportAgent:
                 plan=self._finish_plan(plan, "rag_answer"),
                 evidence=self._evidence(evidence_hits),
                 follow_up_questions=[],
+                memory_facts=memory_facts,
             )
 
         ticket_payload = self._ticket_payload(
@@ -80,6 +87,7 @@ class SupportAgent:
             action="知识库未命中可靠资料，建议生成工单由人工复核。",
         )
         return AgentResponse(
+            session_id=request.session_id,
             route=AgentRoute.handoff,
             status=AgentStatus.unknown,
             answer="知识库没有命中足够可靠的资料，系统不强行编造答案，建议创建人工复核工单。",
@@ -87,6 +95,7 @@ class SupportAgent:
             plan=self._finish_plan(plan, "unknown"),
             evidence=[],
             follow_up_questions=troubleshooting.follow_up_questions,
+            memory_facts=memory_facts,
             ticket_payload=ticket_payload,
         )
 
@@ -174,6 +183,10 @@ class SupportAgent:
                 score=hit.score,
                 quote=hit.content[:220],
                 metadata={
+                    "parent_id": hit.parent_id,
+                    "child_id": hit.child_id,
+                    "sibling_count": str(hit.sibling_count),
+                    "route_path": f"{hit.parent_id} -> {hit.child_id}",
                     "product_line": hit.product_line,
                     "device_model": hit.device_model,
                     "error_code": hit.error_code,
@@ -182,6 +195,27 @@ class SupportAgent:
             )
             for hit in hits
         ]
+
+    @staticmethod
+    def _memory_facts(request: AgentRequest) -> dict[str, str]:
+        fields = (
+            "issue_type",
+            "device_model",
+            "firmware_version",
+            "error_code",
+            "online_status",
+            "indicator_light",
+            "network_type",
+            "heartbeat_age_sec",
+            "mqtt_connected",
+            "last_upgrade_status",
+            "risk_signal",
+        )
+        return {
+            field: str(getattr(request, field))
+            for field in fields
+            if getattr(request, field) is not None and getattr(request, field) != ""
+        }
 
     @staticmethod
     def _ticket_payload(

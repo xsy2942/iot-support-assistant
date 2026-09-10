@@ -37,6 +37,7 @@ const sampleTroubleshooting = {
 
 const sampleAgent = {
   question: "GW-200 报 E104 且 MQTT 连接超时，平台显示心跳已经 15 分钟没有上报，应该怎么排查？",
+  session_id: "demo-agent-session",
   device_model: "GW-200",
   error_code: "E104",
   online_status: "离线",
@@ -48,6 +49,7 @@ const sampleAgent = {
 
 const sampleRiskAgent = {
   question: "客户要求赔偿停机损失，现场设备冒烟并且历史数据全部丢失，应该怎么处理？",
+  session_id: "demo-agent-session",
   device_model: "GW-200",
   error_code: "E104",
   risk_signal: "客户投诉与安全风险",
@@ -157,6 +159,12 @@ document.querySelector("#agent-run-btn").addEventListener("click", async () => {
   } catch (error) {
     showToast(error.message);
   }
+});
+
+document.querySelector("#agent-stream-btn").addEventListener("click", () => {
+  const payload = readJsonPayload(agentInput);
+  if (!payload) return;
+  runAgentStream(payload);
 });
 
 document.querySelector("#agent-risk-btn").addEventListener("click", () => {
@@ -367,10 +375,43 @@ function renderAgent(result) {
       <p>${escapeHtml(result.answer)}</p>
     </div>
     ${renderAgentPlan(result.plan)}
+    ${renderMemoryFacts(result.memory_facts)}
     ${renderFollowUpQuestions(result.follow_up_questions)}
     ${renderAgentEvidence(result.evidence)}
     ${renderTicketPayload(result.ticket_payload)}
   `;
+}
+
+function runAgentStream(payload) {
+  const params = new URLSearchParams();
+  params.set("question", payload.question);
+  if (payload.session_id) params.set("session_id", payload.session_id);
+  if (payload.device_model) params.set("device_model", payload.device_model);
+  if (payload.error_code) params.set("error_code", payload.error_code);
+  if (payload.network_type) params.set("network_type", payload.network_type);
+  if (payload.top_k) params.set("top_k", payload.top_k);
+
+  agentRoutePill.textContent = "流式执行中";
+  agentRoutePill.classList.remove("muted");
+  agentOutput.className = "result-grid";
+  agentOutput.innerHTML = `<div class="agent-stream" id="agent-stream-log"></div>`;
+  const streamLog = document.querySelector("#agent-stream-log");
+  const source = new EventSource(`/agent/respond/stream?${params.toString()}`);
+
+  source.addEventListener("step", (event) => {
+    const data = JSON.parse(event.data);
+    streamLog.insertAdjacentHTML("beforeend", `<div class="plan-step"><b>${escapeHtml(data.name)}</b><span>${escapeHtml(data.status)}</span></div>`);
+  });
+
+  source.addEventListener("result", (event) => {
+    source.close();
+    renderAgent(JSON.parse(event.data));
+  });
+
+  source.onerror = () => {
+    source.close();
+    showToast("流式接口连接中断");
+  };
 }
 
 function renderAgentPlan(plan) {
@@ -412,6 +453,19 @@ function renderAgentEvidence(evidence) {
       `
     )
     .join("");
+}
+
+function renderMemoryFacts(facts) {
+  const entries = Object.entries(facts || {});
+  if (!entries.length) {
+    return `<div class="empty-state">当前会话还没有沉淀上下文字段。</div>`;
+  }
+  return `
+    <div class="field-list">
+      <span>会话记忆</span>
+      ${entries.map(([key, value]) => `<b>${escapeHtml(fieldLabels[key] ?? key)}：${escapeHtml(value)}</b>`).join("")}
+    </div>
+  `;
 }
 
 function keepTroubleshootingSession(sessionId) {
