@@ -3,7 +3,7 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>IoT Support Assistant</title>
+    <title>IoT Support Agent</title>
     <link rel="stylesheet" href="/static/styles.css" />
   </head>
   <body>
@@ -12,16 +12,14 @@
         <div class="brand">
           <div class="brand-mark">IS</div>
           <div>
-            <div class="brand-name">IoT Support</div>
-            <div class="brand-subtitle">诊断与工单控制台</div>
+            <div class="brand-name">IoT Support Agent</div>
+            <div class="brand-subtitle">设备售后工作台</div>
           </div>
         </div>
         <nav class="nav-list" aria-label="Main navigation">
-          <a class="nav-item active" href="#overview">项目总览</a>
-          <a class="nav-item" href="#agent">Agent 编排</a>
-          <a class="nav-item" href="#troubleshooting">多轮排障</a>
-          <a class="nav-item" href="#diagnostics">设备诊断</a>
-          <a class="nav-item" href="#tickets">工单闭环</a>
+          <a class="nav-item active" href="#intake">客户接待</a>
+          <a class="nav-item" href="#tickets">工单队列</a>
+          <a class="nav-item" href="#evaluation">评测说明</a>
           <a class="nav-item" href="/docs">接口文档</a>
         </nav>
         <div class="sidebar-note">
@@ -33,125 +31,71 @@
       <main class="main">
         <header class="topbar">
           <div>
-            <p class="eyebrow">IoT 售后运维</p>
-            <h1>设备诊断与转人工工单台</h1>
+            <p class="eyebrow">IoT 售后工作台</p>
+            <h1>客户问题接待与工单闭环</h1>
+            <p class="page-intro">客服粘贴客户原话，或切换为排障补充、设备遥测输入。系统输出处理结论、参考依据，并在高风险或低置信度时生成工单草稿。</p>
           </div>
           <div class="topbar-actions">
-            <button class="ghost-button" id="refresh-btn" type="button">刷新</button>
-            <button class="primary-button" id="load-sample-btn" type="button">载入异常样本</button>
+            <button class="ghost-button" id="refresh-btn" type="button">刷新工单</button>
+            <button class="primary-button" id="load-sample-btn" type="button">载入演示样本</button>
           </div>
         </header>
 
-        <section class="metric-grid" id="overview" aria-label="Metrics">
+        <section class="metric-grid" aria-label="Ticket status">
           <article class="metric">
-            <span class="metric-label">知识片段</span>
-            <strong>124</strong>
-            <span class="metric-hint">FAQ / 错误码 / 历史工单 / 手册</span>
+            <span class="metric-label">待处理工单</span>
+            <strong id="open-ticket-count">-</strong>
+            <span class="metric-hint">open 状态，需要继续跟进</span>
           </article>
           <article class="metric">
-            <span class="metric-label">遥测样本</span>
-            <strong>80</strong>
-            <span class="metric-hint">心跳、MQTT、信号、电压</span>
+            <span class="metric-label">P1 紧急</span>
+            <strong id="p1-ticket-count">-</strong>
+            <span class="metric-hint">安全、投诉、设备离线优先</span>
           </article>
           <article class="metric">
-            <span class="metric-label">诊断用例</span>
-            <strong>40</strong>
-            <span class="metric-hint">分类、优先级、路由评测</span>
+            <span class="metric-label">转人工工单</span>
+            <strong id="handoff-ticket-count">-</strong>
+            <span class="metric-hint">Agent 判断不适合强答</span>
           </article>
           <article class="metric">
-            <span class="metric-label">工单数量</span>
-            <strong id="ticket-count">-</strong>
+            <span class="metric-label">有用反馈率</span>
+            <strong id="feedback-rate-value">-</strong>
             <span class="metric-hint" id="feedback-rate">等待服务返回</span>
           </article>
         </section>
 
-        <section class="workspace" id="agent">
-          <div class="panel diagnostic-panel">
+        <section class="workspace" id="intake">
+          <div class="panel intake-panel">
             <div class="panel-heading">
               <div>
-                <p class="eyebrow">Python Agent</p>
-                <h2>路由、规划、检索与校验</h2>
+                <p class="eyebrow">客户接待</p>
+                <h2>统一输入</h2>
               </div>
-              <span class="pill">POST /agent/respond</span>
+              <span class="pill" id="input-mode-pill">客户原话</span>
+            </div>
+            <div class="mode-tabs" role="tablist" aria-label="Input modes">
+              <button class="mode-tab active" data-input-mode="question" type="button">客户原话</button>
+              <button class="mode-tab" data-input-mode="troubleshooting" type="button">排障补充</button>
+              <button class="mode-tab" data-input-mode="telemetry" type="button">设备遥测</button>
             </div>
             <textarea id="agent-input" class="compact-textarea" spellcheck="false"></textarea>
             <div class="button-row">
-              <button class="primary-button" id="agent-run-btn" type="button">运行 Agent</button>
-              <button class="ghost-button" id="agent-stream-btn" type="button">流式运行</button>
-              <button class="ghost-button" id="agent-risk-btn" type="button">载入高风险问题</button>
+              <button class="primary-button" id="agent-run-btn" type="button">生成处理结论</button>
+              <button class="ghost-button" id="agent-stream-btn" type="button">流式查看</button>
+              <button class="danger-button" id="agent-create-ticket-btn" type="button" disabled>创建工单</button>
             </div>
           </div>
 
           <div class="panel result-panel">
             <div class="panel-heading">
               <div>
-                <p class="eyebrow">执行结果</p>
-                <h2>计划、证据与回答</h2>
+                <p class="eyebrow">处理结论</p>
+                <h2>回答、追问或工单草稿</h2>
               </div>
               <span class="pill muted" id="agent-route-pill">未运行</span>
             </div>
             <div id="agent-output" class="empty-state">
-              输入用户问题后，Agent 会执行 Fast Router、Structured Planner、本地混合检索、工具调用和证据校验。
-            </div>
-          </div>
-        </section>
-
-        <section class="workspace" id="troubleshooting">
-          <div class="panel diagnostic-panel">
-            <div class="panel-heading">
-              <div>
-                <p class="eyebrow">信息补全</p>
-                <h2>轻量多轮排障</h2>
-              </div>
-              <span class="pill">POST /troubleshooting/next</span>
-            </div>
-            <textarea id="troubleshooting-input" class="compact-textarea" spellcheck="false"></textarea>
-            <div class="button-row">
-              <button class="primary-button" id="troubleshooting-next-btn" type="button">生成下一步</button>
-              <button class="danger-button" id="troubleshooting-ticket-btn" type="button">按排障结果建单</button>
-            </div>
-          </div>
-
-          <div class="panel result-panel">
-            <div class="panel-heading">
-              <div>
-                <p class="eyebrow">引导结果</p>
-                <h2>追问与处理建议</h2>
-              </div>
-              <span class="pill muted" id="troubleshooting-route-pill">未运行</span>
-            </div>
-            <div id="troubleshooting-output" class="empty-state">
-              输入用户的模糊故障描述，系统会判断缺少哪些关键信息，并优先追问而不是直接强答。
-            </div>
-          </div>
-        </section>
-
-        <section class="workspace" id="diagnostics">
-          <div class="panel diagnostic-panel">
-            <div class="panel-heading">
-              <div>
-                <p class="eyebrow">遥测输入</p>
-                <h2>设备遥测诊断</h2>
-              </div>
-              <span class="pill">POST /diagnostics/analyze</span>
-            </div>
-            <textarea id="telemetry-input" spellcheck="false"></textarea>
-            <div class="button-row">
-              <button class="primary-button" id="analyze-btn" type="button">运行诊断</button>
-              <button class="danger-button" id="create-ticket-btn" type="button">创建工单</button>
-            </div>
-          </div>
-
-          <div class="panel result-panel">
-            <div class="panel-heading">
-              <div>
-                <p class="eyebrow">诊断结果</p>
-                <h2>故障判断</h2>
-              </div>
-              <span class="pill muted" id="route-pill">未运行</span>
-            </div>
-            <div id="diagnosis-output" class="empty-state">
-              载入异常样本后点击“运行诊断”，这里会展示故障分类、优先级、证据和建议动作。
+              输入客户问题后，这里会优先展示可直接发给客户的结论；参考依据和 Agent 执行过程会放在下方。
             </div>
           </div>
         </section>
@@ -162,7 +106,7 @@
               <p class="eyebrow">工单闭环</p>
               <h2>工单队列</h2>
             </div>
-            <span class="pill">GET /tickets</span>
+            <span class="pill">人工复核</span>
           </div>
           <div class="table-wrap">
             <table>
@@ -181,6 +125,33 @@
                 </tr>
               </tbody>
             </table>
+          </div>
+        </section>
+
+        <section class="panel evaluation-panel" id="evaluation">
+          <div class="panel-heading">
+            <div>
+              <p class="eyebrow">评测说明</p>
+              <h2>生成集 + 挑战集</h2>
+            </div>
+            <span class="pill">离线验证</span>
+          </div>
+          <div class="eval-grid">
+            <div>
+              <span>问答评测</span>
+              <strong>190 条</strong>
+              <p>150 条生成集验证链路，40 条挑战集覆盖口语改写、信息缺失、未知错误码和转人工边界。</p>
+            </div>
+            <div>
+              <span>路由准确率</span>
+              <strong>95.79%</strong>
+              <p>按直接回答、先追问、转人工三类判断，不把生成集 100% 当作真实泛化能力。</p>
+            </div>
+            <div>
+              <span>严格证据匹配</span>
+              <strong>83.33%</strong>
+              <p>检查召回证据是否匹配预期设备型号或错误码，用来暴露相似设备误召回问题。</p>
+            </div>
           </div>
         </section>
       </main>

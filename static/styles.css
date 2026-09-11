@@ -1,17 +1,18 @@
 :root {
   color-scheme: light;
-  --bg: #f4f7f8;
+  --bg: #f5f7fb;
   --surface: #ffffff;
-  --surface-soft: #eef5f3;
-  --line: #d8e2df;
-  --text: #172321;
-  --muted: #63716e;
-  --primary: #087f73;
-  --primary-strong: #06665d;
-  --danger: #b84a35;
-  --danger-strong: #963928;
-  --warning-bg: #fff4dc;
-  --shadow: 0 18px 45px rgba(24, 48, 43, 0.12);
+  --surface-soft: #eef2ff;
+  --line: #d9e1ec;
+  --text: #172033;
+  --muted: #657186;
+  --primary: #2563eb;
+  --primary-strong: #1d4ed8;
+  --accent: #0f766e;
+  --danger: #c2412f;
+  --danger-strong: #9f3425;
+  --warning-bg: #fff7e6;
+  --shadow: 0 12px 30px rgba(30, 41, 59, 0.08);
   font-family: "Segoe UI", "Microsoft YaHei", Arial, sans-serif;
 }
 
@@ -45,8 +46,8 @@ textarea {
   flex-direction: column;
   gap: 28px;
   padding: 28px 22px;
-  background: #12211f;
-  color: #edf7f5;
+  background: #111827;
+  color: #f7fafc;
 }
 
 .brand {
@@ -61,8 +62,8 @@ textarea {
   width: 42px;
   height: 42px;
   border-radius: 8px;
-  background: #32c6a7;
-  color: #082b26;
+  background: linear-gradient(135deg, #60a5fa, #34d399);
+  color: #0f172a;
   font-weight: 800;
 }
 
@@ -73,7 +74,7 @@ textarea {
 
 .brand-subtitle {
   margin-top: 3px;
-  color: #9fb8b3;
+  color: #aeb8c8;
   font-size: 13px;
 }
 
@@ -85,7 +86,7 @@ textarea {
 .nav-item {
   padding: 11px 12px;
   border-radius: 8px;
-  color: #d7e8e5;
+  color: #d8e0ee;
   text-decoration: none;
   font-size: 14px;
 }
@@ -103,7 +104,7 @@ textarea {
   padding: 12px;
   border: 1px solid rgba(255, 255, 255, 0.12);
   border-radius: 8px;
-  color: #c9ded9;
+  color: #cbd5e1;
   font-size: 13px;
 }
 
@@ -115,11 +116,11 @@ textarea {
 }
 
 .status-dot.ok {
-  background: #32c6a7;
+  background: #34d399;
 }
 
 .main {
-  width: min(1180px, 100%);
+  width: min(1240px, 100%);
   min-width: 0;
   padding: 34px;
 }
@@ -132,9 +133,17 @@ textarea {
   margin-bottom: 24px;
 }
 
+.page-intro {
+  max-width: 720px;
+  margin: 10px 0 0;
+  color: var(--muted);
+  font-size: 15px;
+  line-height: 1.7;
+}
+
 .eyebrow {
   margin: 0 0 8px;
-  color: var(--primary);
+  color: var(--accent);
   font-size: 12px;
   font-weight: 800;
   letter-spacing: 0;
@@ -148,7 +157,7 @@ h2 {
 }
 
 h1 {
-  font-size: 34px;
+  font-size: 32px;
   line-height: 1.16;
 }
 
@@ -196,11 +205,16 @@ button {
   color: var(--text);
 }
 
+.ghost-button:hover {
+  border-color: #b8c6d9;
+  background: #f8fafc;
+}
+
 .metric-grid {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 14px;
-  margin-bottom: 18px;
+  margin-bottom: 22px;
 }
 
 .metric,
@@ -213,6 +227,7 @@ button {
 }
 
 .metric {
+  min-height: 118px;
   padding: 18px;
 }
 
@@ -227,11 +242,12 @@ button {
   display: block;
   margin: 8px 0 5px;
   font-size: 30px;
+  line-height: 1.2;
 }
 
 .workspace {
   display: grid;
-  grid-template-columns: minmax(420px, 1fr) minmax(360px, 0.85fr);
+  grid-template-columns: minmax(390px, 0.82fr) minmax(520px, 1.18fr);
   gap: 18px;
   margin-bottom: 18px;
 }
@@ -264,7 +280,7 @@ button {
 
 textarea {
   width: 100%;
-  min-height: 430px;
+  min-height: 360px;
   resize: vertical;
   border: 1px solid var(--line);
   border-radius: 8px;
@@ -277,7 +293,9 @@ textarea {
 }
 
 .compact-textarea {
-  min-height: 330px;
+  min-height: 250px;
+  font-family: "Segoe UI", "Microsoft YaHei", Arial, sans-serif;
+  font-size: 15px;
 }
 
 textarea:focus {
@@ -288,6 +306,26 @@ textarea:focus {
 .result-grid {
   display: grid;
   gap: 12px;
+}
+
+.mode-tabs {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.mode-tab {
+  min-height: 38px;
+  border: 1px solid var(--line);
+  background: #f8fafc;
+  color: var(--muted);
+}
+
+.mode-tab.active {
+  border-color: #93c5fd;
+  background: #eff6ff;
+  color: #1d4ed8;
 }
 
 .summary-strip {
@@ -312,14 +350,35 @@ textarea:focus {
 .summary-item strong {
   display: block;
   margin-top: 5px;
-  font-size: 18px;
+  font-size: 17px;
 }
 
 .finding {
   border-left: 4px solid var(--primary);
   border-radius: 8px;
   padding: 12px;
-  background: #f7fbfa;
+  background: #f8fafc;
+}
+
+.answer-card {
+  border: 1px solid #bfdbfe;
+  border-left: 5px solid var(--primary);
+  border-radius: 8px;
+  padding: 16px;
+  background: #f8fbff;
+}
+
+.answer-card.major {
+  border-color: #fed7aa;
+  border-left-color: var(--danger);
+  background: #fff7ed;
+}
+
+.answer-card p {
+  margin: 0;
+  color: #334155;
+  font-size: 15px;
+  line-height: 1.75;
 }
 
 .finding.critical {
@@ -372,7 +431,7 @@ textarea:focus {
 .option-row span {
   border-radius: 999px;
   background: var(--surface-soft);
-  color: var(--primary-strong);
+  color: #1e3a8a;
   padding: 6px 9px;
   font-size: 12px;
 }
@@ -382,13 +441,63 @@ textarea:focus {
 }
 
 .agent-plan,
-.agent-stream {
+.react-trace,
+.agent-stream,
+.evidence-list {
   align-items: stretch;
+}
+
+.react-trace {
+  display: grid;
+  gap: 10px;
+}
+
+.trace-details {
+  border: 1px dashed var(--line);
+  border-radius: 8px;
+  padding: 12px;
+  background: #fbfcff;
+}
+
+.trace-details summary {
+  cursor: pointer;
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.trace-details .react-trace {
+  margin-top: 10px;
+}
+
+.react-step {
+  border-left: 4px solid #4f46e5;
+  border-radius: 8px;
+  padding: 12px;
+  background: #f7fbff;
+}
+
+.section-label {
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.react-step p {
+  margin: 6px 0 0;
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1.5;
 }
 
 .agent-stream {
   display: grid;
   gap: 8px;
+}
+
+.evidence-list {
+  display: grid;
+  gap: 10px;
 }
 
 .plan-step {
@@ -410,7 +519,7 @@ textarea:focus {
 
 .plan-step span {
   margin-top: 5px;
-  color: var(--primary-strong);
+  color: var(--accent);
   font-size: 12px;
   font-weight: 800;
 }
@@ -435,6 +544,41 @@ table {
   width: 100%;
   border-collapse: collapse;
   min-width: 760px;
+}
+
+.evaluation-panel {
+  margin-top: 18px;
+}
+
+.eval-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.eval-grid div {
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #fbfcff;
+  padding: 14px;
+}
+
+.eval-grid span {
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.eval-grid strong {
+  display: block;
+  margin-top: 6px;
+  font-size: 24px;
+}
+
+.eval-grid p {
+  margin: 8px 0 0;
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1.55;
 }
 
 th,
@@ -485,7 +629,8 @@ th {
   }
 
   .metric-grid,
-  .workspace {
+  .workspace,
+  .eval-grid {
     grid-template-columns: 1fr;
   }
 

@@ -41,21 +41,111 @@ Q-039,PM-200 出现平台告警延迟，应该先检查哪些项目？,direct_an
 Q-040,GW-100 出现设备离线，应该先检查哪些项目？,direct_answer,设备离线,设备离线,single_doc
 Q-041,GW-200 出现MQTT 连接超时，应该先检查哪些项目？,direct_answer,MQTT 连接超时,MQTT 连接超时,single_doc
 Q-042,GW-500 出现固件升级失败，应该先检查哪些项目？,direct_answer,固件升级失败,固件升级失败,single_doc
-Q-043,TH-10 报 E204，同时平台有版本回退受限和心跳异常，需要怎么综合判断？,direct_answer,E204,多文档组合,multi_doc
-Q-044,TH-30 报 E205，同时平台有升级后配置迁移失败和心跳异常，需要怎么综合判断？,direct_answer,E205,多文档组合,multi_doc
-Q-045,AQ-20 报 E206，同时平台有Bootloader 启动失败和心跳异常，需要怎么综合判断？,direct_answer,E206,多文档组合,multi_doc
-Q-046,VB-100 报 E207，同时平台有灰度策略未命中和心跳异常，需要怎么综合判断？,direct_answer,E207,多文档组合,multi_doc
-Q-047,VB-300 报 E208，同时平台有固件下载超时和心跳异常，需要怎么综合判断？,direct_answer,E208,多文档组合,multi_doc
-Q-048,PM-80 报 E301，同时平台有温度探头断路和心跳异常，需要怎么综合判断？,direct_answer,E301,多文档组合,multi_doc
-Q-049,PM-200 报 E302，同时平台有湿度读数越界和心跳异常，需要怎么综合判断？,direct_answer,E302,多文档组合,multi_doc
-Q-050,GW-100 报 E303，同时平台有振动采样溢出和心跳异常，需要怎么综合判断？,direct_answer,E303,多文档组合,multi_doc
-Q-051,GW-200 报 E304，同时平台有电压相序错误和心跳异常，需要怎么综合判断？,direct_answer,E304,多文档组合,multi_doc
-Q-052,GW-500 报 E305，同时平台有采样周期非法和心跳异常，需要怎么综合判断？,direct_answer,E305,多文档组合,multi_doc
-Q-053,TH-10 报 E306，同时平台有校准参数缺失和心跳异常，需要怎么综合判断？,direct_answer,E306,多文档组合,multi_doc
-Q-054,TH-30 报 E307，同时平台有传感器总线冲突和心跳异常，需要怎么综合判断？,direct_answer,E307,多文档组合,multi_doc
-Q-055,客户要求赔偿停机损失，但知识库里没有合同赔偿条款，应该怎么答？,handoff,转人工,转人工,out_of_scope
-Q-056,设备现场疑似短路冒烟，客户要求远程继续升级固件，应该怎么处理？,handoff,转人工,转人工,out_of_scope
-Q-057,客户说历史数据全部丢失，需要确认法律责任，知识库没有相关说明。,handoff,转人工,转人工,out_of_scope
-Q-058,出现错误码 X999，资料库没有这个错误码，能不能直接告诉客户原因？,handoff,转人工,转人工,out_of_scope
-Q-059,客户投诉多次维修未解决，要求升级负责人介入。,handoff,转人工,转人工,out_of_scope
-Q-060,设备涉及人身安全事故，客户要求立即给出责任结论。,handoff,转人工,转人工,out_of_scope
+Q-043,TH-10 出现传感器采样异常，应该先检查哪些项目？,direct_answer,传感器采样异常,传感器采样异常,single_doc
+Q-044,TH-30 出现网关心跳丢失，应该先检查哪些项目？,direct_answer,网关心跳丢失,网关心跳丢失,single_doc
+Q-045,AQ-20 出现设备绑定失败，应该先检查哪些项目？,direct_answer,设备绑定失败,设备绑定失败,single_doc
+Q-046,VB-100 出现电压数据异常，应该先检查哪些项目？,direct_answer,电压数据异常,电压数据异常,single_doc
+Q-047,VB-300 出现温度数据漂移，应该先检查哪些项目？,direct_answer,温度数据漂移,温度数据漂移,single_doc
+Q-048,PM-80 出现振动阈值误报，应该先检查哪些项目？,direct_answer,振动阈值误报,振动阈值误报,single_doc
+Q-049,PM-200 出现平台告警延迟，应该先检查哪些项目？,direct_answer,平台告警延迟,平台告警延迟,single_doc
+Q-050,GW-100 出现设备离线，应该先检查哪些项目？,direct_answer,设备离线,设备离线,single_doc
+Q-051,GW-200 出现MQTT 连接超时，应该先检查哪些项目？,direct_answer,MQTT 连接超时,MQTT 连接超时,single_doc
+Q-052,GW-500 出现固件升级失败，应该先检查哪些项目？,direct_answer,固件升级失败,固件升级失败,single_doc
+Q-053,TH-10 出现传感器采样异常，应该先检查哪些项目？,direct_answer,传感器采样异常,传感器采样异常,single_doc
+Q-054,TH-30 出现网关心跳丢失，应该先检查哪些项目？,direct_answer,网关心跳丢失,网关心跳丢失,single_doc
+Q-055,AQ-20 出现设备绑定失败，应该先检查哪些项目？,direct_answer,设备绑定失败,设备绑定失败,single_doc
+Q-056,VB-100 出现电压数据异常，应该先检查哪些项目？,direct_answer,电压数据异常,电压数据异常,single_doc
+Q-057,VB-300 出现温度数据漂移，应该先检查哪些项目？,direct_answer,温度数据漂移,温度数据漂移,single_doc
+Q-058,PM-80 出现振动阈值误报，应该先检查哪些项目？,direct_answer,振动阈值误报,振动阈值误报,single_doc
+Q-059,PM-200 出现平台告警延迟，应该先检查哪些项目？,direct_answer,平台告警延迟,平台告警延迟,single_doc
+Q-060,GW-100 出现设备离线，应该先检查哪些项目？,direct_answer,设备离线,设备离线,single_doc
+Q-061,GW-200 出现MQTT 连接超时，应该先检查哪些项目？,direct_answer,MQTT 连接超时,MQTT 连接超时,single_doc
+Q-062,GW-500 出现固件升级失败，应该先检查哪些项目？,direct_answer,固件升级失败,固件升级失败,single_doc
+Q-063,TH-10 出现传感器采样异常，应该先检查哪些项目？,direct_answer,传感器采样异常,传感器采样异常,single_doc
+Q-064,TH-30 出现网关心跳丢失，应该先检查哪些项目？,direct_answer,网关心跳丢失,网关心跳丢失,single_doc
+Q-065,AQ-20 出现设备绑定失败，应该先检查哪些项目？,direct_answer,设备绑定失败,设备绑定失败,single_doc
+Q-066,VB-100 出现电压数据异常，应该先检查哪些项目？,direct_answer,电压数据异常,电压数据异常,single_doc
+Q-067,VB-300 出现温度数据漂移，应该先检查哪些项目？,direct_answer,温度数据漂移,温度数据漂移,single_doc
+Q-068,PM-80 出现振动阈值误报，应该先检查哪些项目？,direct_answer,振动阈值误报,振动阈值误报,single_doc
+Q-069,PM-200 出现平台告警延迟，应该先检查哪些项目？,direct_answer,平台告警延迟,平台告警延迟,single_doc
+Q-070,GW-100 出现设备离线，应该先检查哪些项目？,direct_answer,设备离线,设备离线,single_doc
+Q-071,GW-200 出现MQTT 连接超时，应该先检查哪些项目？,direct_answer,MQTT 连接超时,MQTT 连接超时,single_doc
+Q-072,GW-500 出现固件升级失败，应该先检查哪些项目？,direct_answer,固件升级失败,固件升级失败,single_doc
+Q-073,TH-10 出现传感器采样异常，应该先检查哪些项目？,direct_answer,传感器采样异常,传感器采样异常,single_doc
+Q-074,TH-30 出现网关心跳丢失，应该先检查哪些项目？,direct_answer,网关心跳丢失,网关心跳丢失,single_doc
+Q-075,AQ-20 出现设备绑定失败，应该先检查哪些项目？,direct_answer,设备绑定失败,设备绑定失败,single_doc
+Q-076,VB-100 出现电压数据异常，应该先检查哪些项目？,direct_answer,电压数据异常,电压数据异常,single_doc
+Q-077,VB-300 出现温度数据漂移，应该先检查哪些项目？,direct_answer,温度数据漂移,温度数据漂移,single_doc
+Q-078,PM-80 出现振动阈值误报，应该先检查哪些项目？,direct_answer,振动阈值误报,振动阈值误报,single_doc
+Q-079,PM-200 出现平台告警延迟，应该先检查哪些项目？,direct_answer,平台告警延迟,平台告警延迟,single_doc
+Q-080,GW-100 出现设备离线，应该先检查哪些项目？,direct_answer,设备离线,设备离线,single_doc
+Q-081,GW-200 出现MQTT 连接超时，应该先检查哪些项目？,direct_answer,MQTT 连接超时,MQTT 连接超时,single_doc
+Q-082,GW-500 出现固件升级失败，应该先检查哪些项目？,direct_answer,固件升级失败,固件升级失败,single_doc
+Q-083,TH-10 出现传感器采样异常，应该先检查哪些项目？,direct_answer,传感器采样异常,传感器采样异常,single_doc
+Q-084,TH-30 出现网关心跳丢失，应该先检查哪些项目？,direct_answer,网关心跳丢失,网关心跳丢失,single_doc
+Q-085,AQ-20 出现设备绑定失败，应该先检查哪些项目？,direct_answer,设备绑定失败,设备绑定失败,single_doc
+Q-086,VB-100 出现电压数据异常，应该先检查哪些项目？,direct_answer,电压数据异常,电压数据异常,single_doc
+Q-087,VB-300 出现温度数据漂移，应该先检查哪些项目？,direct_answer,温度数据漂移,温度数据漂移,single_doc
+Q-088,PM-80 出现振动阈值误报，应该先检查哪些项目？,direct_answer,振动阈值误报,振动阈值误报,single_doc
+Q-089,PM-200 出现平台告警延迟，应该先检查哪些项目？,direct_answer,平台告警延迟,平台告警延迟,single_doc
+Q-090,GW-100 出现设备离线，应该先检查哪些项目？,direct_answer,设备离线,设备离线,single_doc
+Q-091,GW-200 出现MQTT 连接超时，应该先检查哪些项目？,direct_answer,MQTT 连接超时,MQTT 连接超时,single_doc
+Q-092,GW-500 出现固件升级失败，应该先检查哪些项目？,direct_answer,固件升级失败,固件升级失败,single_doc
+Q-093,TH-10 出现传感器采样异常，应该先检查哪些项目？,direct_answer,传感器采样异常,传感器采样异常,single_doc
+Q-094,TH-30 出现网关心跳丢失，应该先检查哪些项目？,direct_answer,网关心跳丢失,网关心跳丢失,single_doc
+Q-095,AQ-20 出现设备绑定失败，应该先检查哪些项目？,direct_answer,设备绑定失败,设备绑定失败,single_doc
+Q-096,VB-100 出现电压数据异常，应该先检查哪些项目？,direct_answer,电压数据异常,电压数据异常,single_doc
+Q-097,VB-300 出现温度数据漂移，应该先检查哪些项目？,direct_answer,温度数据漂移,温度数据漂移,single_doc
+Q-098,PM-80 出现振动阈值误报，应该先检查哪些项目？,direct_answer,振动阈值误报,振动阈值误报,single_doc
+Q-099,PM-200 出现平台告警延迟，应该先检查哪些项目？,direct_answer,平台告警延迟,平台告警延迟,single_doc
+Q-100,GW-100 出现设备离线，应该先检查哪些项目？,direct_answer,设备离线,设备离线,single_doc
+Q-101,GW-200 出现MQTT 连接超时，应该先检查哪些项目？,direct_answer,MQTT 连接超时,MQTT 连接超时,single_doc
+Q-102,GW-500 出现固件升级失败，应该先检查哪些项目？,direct_answer,固件升级失败,固件升级失败,single_doc
+Q-103,TH-10 出现传感器采样异常，应该先检查哪些项目？,direct_answer,传感器采样异常,传感器采样异常,single_doc
+Q-104,TH-30 出现网关心跳丢失，应该先检查哪些项目？,direct_answer,网关心跳丢失,网关心跳丢失,single_doc
+Q-105,AQ-20 出现设备绑定失败，应该先检查哪些项目？,direct_answer,设备绑定失败,设备绑定失败,single_doc
+Q-106,VB-100 出现电压数据异常，应该先检查哪些项目？,direct_answer,电压数据异常,电压数据异常,single_doc
+Q-107,VB-300 出现温度数据漂移，应该先检查哪些项目？,direct_answer,温度数据漂移,温度数据漂移,single_doc
+Q-108,PM-80 出现振动阈值误报，应该先检查哪些项目？,direct_answer,振动阈值误报,振动阈值误报,single_doc
+Q-109,PM-200 出现平台告警延迟，应该先检查哪些项目？,direct_answer,平台告警延迟,平台告警延迟,single_doc
+Q-110,GW-100 出现设备离线，应该先检查哪些项目？,direct_answer,设备离线,设备离线,single_doc
+Q-111,GW-200 报 E304，同时平台有电压相序错误和心跳异常，需要怎么综合判断？,direct_answer,E304,多文档组合,multi_doc
+Q-112,GW-500 报 E305，同时平台有采样周期非法和心跳异常，需要怎么综合判断？,direct_answer,E305,多文档组合,multi_doc
+Q-113,TH-10 报 E306，同时平台有校准参数缺失和心跳异常，需要怎么综合判断？,direct_answer,E306,多文档组合,multi_doc
+Q-114,TH-30 报 E307，同时平台有传感器总线冲突和心跳异常，需要怎么综合判断？,direct_answer,E307,多文档组合,multi_doc
+Q-115,AQ-20 报 E308，同时平台有电流通道无数据和心跳异常，需要怎么综合判断？,direct_answer,E308,多文档组合,multi_doc
+Q-116,VB-100 报 E401，同时平台有告警规则执行失败和心跳异常，需要怎么综合判断？,direct_answer,E401,多文档组合,multi_doc
+Q-117,VB-300 报 E402，同时平台有消息队列积压和心跳异常，需要怎么综合判断？,direct_answer,E402,多文档组合,multi_doc
+Q-118,PM-80 报 E403，同时平台有数据写入超时和心跳异常，需要怎么综合判断？,direct_answer,E403,多文档组合,multi_doc
+Q-119,PM-200 报 E404，同时平台有设备影子版本冲突和心跳异常，需要怎么综合判断？,direct_answer,E404,多文档组合,multi_doc
+Q-120,GW-100 报 E101，同时平台有设备认证失败和心跳异常，需要怎么综合判断？,direct_answer,E101,多文档组合,multi_doc
+Q-121,GW-200 报 E102，同时平台有MQTT Broker 不可达和心跳异常，需要怎么综合判断？,direct_answer,E102,多文档组合,multi_doc
+Q-122,GW-500 报 E103，同时平台有TLS 握手失败和心跳异常，需要怎么综合判断？,direct_answer,E103,多文档组合,multi_doc
+Q-123,TH-10 报 E104，同时平台有心跳超时和心跳异常，需要怎么综合判断？,direct_answer,E104,多文档组合,multi_doc
+Q-124,TH-30 报 E105，同时平台有设备重复绑定和心跳异常，需要怎么综合判断？,direct_answer,E105,多文档组合,multi_doc
+Q-125,AQ-20 报 E106，同时平台有NTP 同步失败和心跳异常，需要怎么综合判断？,direct_answer,E106,多文档组合,multi_doc
+Q-126,VB-100 报 E107，同时平台有配置下发失败和心跳异常，需要怎么综合判断？,direct_answer,E107,多文档组合,multi_doc
+Q-127,VB-300 报 E108，同时平台有网关存储空间不足和心跳异常，需要怎么综合判断？,direct_answer,E108,多文档组合,multi_doc
+Q-128,PM-80 报 E109，同时平台有蜂窝网络注册失败和心跳异常，需要怎么综合判断？,direct_answer,E109,多文档组合,multi_doc
+Q-129,PM-200 报 E110，同时平台有以太网链路断开和心跳异常，需要怎么综合判断？,direct_answer,E110,多文档组合,multi_doc
+Q-130,GW-100 报 E201，同时平台有固件包校验失败和心跳异常，需要怎么综合判断？,direct_answer,E201,多文档组合,multi_doc
+Q-131,GW-200 报 E202，同时平台有升级电量不足和心跳异常，需要怎么综合判断？,direct_answer,E202,多文档组合,multi_doc
+Q-132,GW-500 报 E203，同时平台有升级过程断连和心跳异常，需要怎么综合判断？,direct_answer,E203,多文档组合,multi_doc
+Q-133,TH-10 报 E204，同时平台有版本回退受限和心跳异常，需要怎么综合判断？,direct_answer,E204,多文档组合,multi_doc
+Q-134,TH-30 报 E205，同时平台有升级后配置迁移失败和心跳异常，需要怎么综合判断？,direct_answer,E205,多文档组合,multi_doc
+Q-135,AQ-20 报 E206，同时平台有Bootloader 启动失败和心跳异常，需要怎么综合判断？,direct_answer,E206,多文档组合,multi_doc
+Q-136,客户要求赔偿停机损失，但知识库里没有合同赔偿条款，应该怎么答？,handoff,转人工,转人工,out_of_scope
+Q-137,设备现场疑似短路冒烟，客户要求远程继续升级固件，应该怎么处理？,handoff,转人工,转人工,out_of_scope
+Q-138,客户说历史数据全部丢失，需要确认法律责任，知识库没有相关说明。,handoff,转人工,转人工,out_of_scope
+Q-139,出现错误码 X999，资料库没有这个错误码，能不能直接告诉客户原因？,handoff,转人工,转人工,out_of_scope
+Q-140,客户投诉多次维修未解决，要求升级负责人介入。,handoff,转人工,转人工,out_of_scope
+Q-141,设备涉及人身安全事故，客户要求立即给出责任结论。,handoff,转人工,转人工,out_of_scope
+Q-142,客户投诉 GW-100 多次维修后仍然设备离线，要求给责任结论。,handoff,转人工,转人工,out_of_scope
+Q-143,客户投诉 GW-100 多次维修后仍然MQTT 连接超时，要求给责任结论。,handoff,转人工,转人工,out_of_scope
+Q-144,客户投诉 GW-200 多次维修后仍然设备离线，要求给责任结论。,handoff,转人工,转人工,out_of_scope
+Q-145,客户投诉 GW-200 多次维修后仍然MQTT 连接超时，要求给责任结论。,handoff,转人工,转人工,out_of_scope
+Q-146,客户投诉 GW-500 多次维修后仍然设备离线，要求给责任结论。,handoff,转人工,转人工,out_of_scope
+Q-147,客户投诉 GW-500 多次维修后仍然MQTT 连接超时，要求给责任结论。,handoff,转人工,转人工,out_of_scope
+Q-148,客户投诉 TH-10 多次维修后仍然设备离线，要求给责任结论。,handoff,转人工,转人工,out_of_scope
+Q-149,客户投诉 TH-10 多次维修后仍然MQTT 连接超时，要求给责任结论。,handoff,转人工,转人工,out_of_scope
+Q-150,客户投诉 TH-30 多次维修后仍然设备离线，要求给责任结论。,handoff,转人工,转人工,out_of_scope

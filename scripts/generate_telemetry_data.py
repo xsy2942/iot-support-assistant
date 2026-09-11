@@ -37,7 +37,7 @@ def build_samples() -> list[dict[str, object]]:
     samples: list[dict[str, object]] = []
     patterns = ["normal", "offline", "mqtt_timeout", "upgrade_failed", "sensor_drift", "voltage_risk", "safety"]
 
-    for index in range(1, 81):
+    for index in range(1, 121):
         device_id, product_line, model, firmware = DEVICES[index % len(DEVICES)]
         pattern = patterns[index % len(patterns)]
         sample = {
@@ -140,7 +140,7 @@ def build_samples() -> list[dict[str, object]]:
 
 def build_cases(samples: list[dict[str, object]]) -> list[dict[str, object]]:
     cases = []
-    for sample in samples[:40]:
+    for sample in samples[:80]:
         cases.append(
             {
                 "case_id": sample["sample_id"].replace("TEL", "DIA"),

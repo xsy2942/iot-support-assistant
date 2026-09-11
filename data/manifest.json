@@ -1,9 +1,9 @@
 {
-  "generated_at": "2026-08-30T10:51:20",
-  "faq_count": 40,
+  "generated_at": "2026-09-11T16:08:30",
+  "faq_count": 100,
   "error_code_count": 30,
-  "historical_ticket_count": 50,
-  "manual_count": 4,
-  "eval_question_count": 60,
-  "knowledge_chunk_count": 124
+  "historical_ticket_count": 300,
+  "manual_count": 10,
+  "eval_question_count": 150,
+  "knowledge_chunk_count": 500
 }

@@ -173,6 +173,7 @@ class AgentRequest(BaseModel):
     tried_steps: list[str] = Field(default_factory=list)
     risk_signal: str | None = None
     top_k: int = Field(default=3, ge=1, le=8)
+    max_steps: int = Field(default=6, ge=2, le=10)
 
 
 class AgentStep(BaseModel):
@@ -192,6 +193,15 @@ class AgentEvidence(BaseModel):
     metadata: dict[str, str] = Field(default_factory=dict)
 
 
+class ReactTraceStep(BaseModel):
+    index: int
+    reasoning_summary: str
+    action: str
+    action_input: dict[str, object] = Field(default_factory=dict)
+    observation: dict[str, object] = Field(default_factory=dict)
+    next_decision: str
+
+
 class AgentResponse(BaseModel):
     session_id: str | None = None
     route: AgentRoute
@@ -199,6 +209,7 @@ class AgentResponse(BaseModel):
     answer: str
     confidence_score: float = Field(ge=0, le=1)
     plan: list[AgentStep]
+    react_trace: list[ReactTraceStep] = Field(default_factory=list)
     evidence: list[AgentEvidence] = Field(default_factory=list)
     follow_up_questions: list[TroubleshootingQuestion] = Field(default_factory=list)
     memory_facts: dict[str, str] = Field(default_factory=dict)

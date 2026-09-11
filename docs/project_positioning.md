@@ -34,7 +34,7 @@ IoT Support Agent 设备售后智能体与工单闭环系统
 | 业务领域 | 招聘、人岗匹配、面试 | IoT 售后、设备故障、工单 |
 | 主要数据 | 简历、JD、候选人资料 | FAQ、错误码、产品手册、历史工单、遥测数据 |
 | 核心判断 | 匹配度、候选人画像 | 故障分类、优先级、转人工路由 |
-| 技术亮点 | Agent 编排、记忆、招聘流程 | Python Agent 编排、MCP Server、RAG 检索、父子块证据召回、Redis 会话记忆、遥测规则诊断、HITL 工单闭环 |
+| 技术亮点 | Agent 编排、记忆、招聘流程 | Python ReAct Agent、动态工具选择、MCP Server、本地 RAG 检索、父子块证据召回、Redis 会话记忆、遥测规则诊断、HITL 工单闭环 |
 | 评测指标 | 匹配或推荐效果 | Top3 召回率、引用覆盖率、转人工准确率、诊断分类准确率 |
 
 ## 简历表达方向
@@ -42,7 +42,7 @@ IoT Support Agent 设备售后智能体与工单闭环系统
 建议强调：
 
 ```text
-独立实现 IoT Support Agent，围绕设备心跳、MQTT 连接、错误码、固件升级和传感器采样等售后场景，构建 Fast Router、Structured Planner、本地 RAG 检索、父子块证据召回、Redis 会话记忆、MCP Server 工具调用、低置信度转人工和工单闭环评测。
+独立实现 IoT Support Agent，围绕设备心跳、MQTT 连接、错误码、固件升级和传感器采样等售后场景，构建 Reason -> Action -> Observation -> Verify 的 ReAct 执行链，由 Agent 动态选择会话记忆读取、排障追问、本地 RAG 检索、工单草稿生成和最终回答，并结合父子块证据召回、Redis 会话记忆、MCP Server 工具调用、低置信度转人工和工单闭环评测。
 ```
 
 不要写成：

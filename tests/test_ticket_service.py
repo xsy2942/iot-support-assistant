@@ -28,7 +28,7 @@ def test_ticket_feedback_report_flow(tmp_path, monkeypatch):
 
     dashboard = client.get("/")
     assert dashboard.status_code == 200
-    assert "IoT Support Assistant" in dashboard.text
+    assert "IoT Support Agent" in dashboard.text
 
     ticket_payload = {
         "question": "GW-200 报 E104 且心跳丢失，客户已经重启设备。",
@@ -184,7 +184,8 @@ def test_agent_answers_with_local_knowledge_evidence(tmp_path, monkeypatch):
     body = response.json()
     assert body["route"] == "rag_answer"
     assert body["evidence"]
-    assert body["plan"][0]["name"] == "Fast Router"
+    assert body["react_trace"][0]["action"] == "memory.read"
+    assert "knowledge.search" in {step["action"] for step in body["react_trace"]}
     assert "引用来源" in body["answer"]
 
 

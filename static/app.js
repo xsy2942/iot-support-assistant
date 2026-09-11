@@ -20,7 +20,7 @@ const sampleTelemetry = {
 };
 
 const sampleTroubleshooting = {
-  session_id: null,
+  session_id: "demo-agent-session",
   question: "设备连不上平台了，现场人员也说不清楚具体原因。",
   issue_type: "设备离线",
   device_model: null,
@@ -35,44 +35,26 @@ const sampleTroubleshooting = {
   risk_signal: null
 };
 
-const sampleAgent = {
-  question: "GW-200 报 E104 且 MQTT 连接超时，平台显示心跳已经 15 分钟没有上报，应该怎么排查？",
-  session_id: "demo-agent-session",
-  device_model: "GW-200",
-  error_code: "E104",
-  online_status: "离线",
-  network_type: "4G",
-  mqtt_connected: false,
-  heartbeat_age_sec: 900,
-  top_k: 3
-};
+const sampleQuestion = "GW-200 报 E104 且 MQTT 连接超时，平台显示心跳已经 15 分钟没有上报，应该怎么排查？";
 
-const sampleRiskAgent = {
-  question: "客户要求赔偿停机损失，现场设备冒烟并且历史数据全部丢失，应该怎么处理？",
-  session_id: "demo-agent-session",
-  device_model: "GW-200",
-  error_code: "E104",
-  risk_signal: "客户投诉与安全风险",
-  top_k: 3
+const modeConfig = {
+  question: {
+    label: "客户原话",
+    placeholder: "粘贴客户原话，例如：GW-200 报 E104 且 MQTT 连接超时，平台显示心跳 15 分钟没有上报，应该怎么排查？"
+  },
+  troubleshooting: {
+    label: "排障补充",
+    placeholder: "粘贴排障补充 JSON，例如设备型号、在线状态、指示灯、网络类型、错误码。"
+  },
+  telemetry: {
+    label: "设备遥测",
+    placeholder: "粘贴设备遥测 JSON，例如心跳、MQTT 状态、信号强度、电压、温度。"
+  }
 };
-
-const agentInput = document.querySelector("#agent-input");
-const agentOutput = document.querySelector("#agent-output");
-const agentRoutePill = document.querySelector("#agent-route-pill");
-const telemetryInput = document.querySelector("#telemetry-input");
-const diagnosisOutput = document.querySelector("#diagnosis-output");
-const troubleshootingInput = document.querySelector("#troubleshooting-input");
-const troubleshootingOutput = document.querySelector("#troubleshooting-output");
-const troubleshootingRoutePill = document.querySelector("#troubleshooting-route-pill");
-const ticketTable = document.querySelector("#ticket-table");
-const ticketCount = document.querySelector("#ticket-count");
-const feedbackRate = document.querySelector("#feedback-rate");
-const routePill = document.querySelector("#route-pill");
-const toast = document.querySelector("#toast");
-const statusDot = document.querySelector(".status-dot");
-const serviceStatus = document.querySelector("#service-status");
 
 const categoryNames = {
+  high_risk_or_low_confidence: "高风险或低置信度",
+  agent_handoff: "Agent 转人工",
   device_offline: "设备离线",
   mqtt_timeout: "MQTT 连接超时",
   firmware_upgrade_failed: "固件升级失败",
@@ -114,6 +96,13 @@ const statusNames = {
 };
 
 const actionNames = {
+  "memory.read": "读取会话记忆",
+  "troubleshooting.guide": "检查缺失信息",
+  "knowledge.search": "检索知识库",
+  "ticket.draft": "生成工单草稿",
+  "final.clarify": "返回追问",
+  "final.answer": "生成答复",
+  "final.handoff": "转人工复核",
   "Stop remote operations and escalate to human support with field logs.": "停止远程操作，收集现场日志并转人工处理。",
   "Check power, network, SIM balance, firewall policy, and last heartbeat.": "检查供电、网络、SIM 卡余额、防火墙策略和最近心跳时间。",
   "Verify broker host, port, TLS certificate, device credentials, and weak-network logs.": "核对 Broker 地址、端口、TLS 证书、设备凭证和弱网重连日志。",
@@ -135,15 +124,33 @@ const fieldLabels = {
   last_upgrade_status: "升级状态"
 };
 
-telemetryInput.value = JSON.stringify(sampleTelemetry, null, 2);
-troubleshootingInput.value = JSON.stringify(sampleTroubleshooting, null, 2);
-agentInput.value = JSON.stringify(sampleAgent, null, 2);
+let currentMode = "question";
+let lastTicketPayload = null;
+
+const input = document.querySelector("#agent-input");
+const output = document.querySelector("#agent-output");
+const routePill = document.querySelector("#agent-route-pill");
+const inputModePill = document.querySelector("#input-mode-pill");
+const createTicketButton = document.querySelector("#agent-create-ticket-btn");
+const ticketTable = document.querySelector("#ticket-table");
+const openTicketCount = document.querySelector("#open-ticket-count");
+const p1TicketCount = document.querySelector("#p1-ticket-count");
+const handoffTicketCount = document.querySelector("#handoff-ticket-count");
+const feedbackRateValue = document.querySelector("#feedback-rate-value");
+const feedbackRate = document.querySelector("#feedback-rate");
+const toast = document.querySelector("#toast");
+const statusDot = document.querySelector(".status-dot");
+const serviceStatus = document.querySelector("#service-status");
+
+setInputMode("question");
+
+document.querySelectorAll("[data-input-mode]").forEach((button) => {
+  button.addEventListener("click", () => setInputMode(button.dataset.inputMode));
+});
 
 document.querySelector("#load-sample-btn").addEventListener("click", () => {
-  telemetryInput.value = JSON.stringify(sampleTelemetry, null, 2);
-  troubleshootingInput.value = JSON.stringify(sampleTroubleshooting, null, 2);
-  agentInput.value = JSON.stringify(sampleAgent, null, 2);
-  showToast("已载入一条网关心跳超时样本");
+  fillSample(currentMode);
+  showToast(`已载入${modeConfig[currentMode].label}演示样本`);
 });
 
 document.querySelector("#refresh-btn").addEventListener("click", () => {
@@ -152,85 +159,83 @@ document.querySelector("#refresh-btn").addEventListener("click", () => {
 
 document.querySelector("#agent-run-btn").addEventListener("click", async () => {
   try {
-    const payload = readJsonPayload(agentInput);
-    if (!payload) return;
-    const result = await postJson("/agent/respond", payload);
-    renderAgent(result);
+    resetTicketAction();
+    if (currentMode === "question") {
+      renderAgent(await postJson("/agent/respond", readQuestionPayload()));
+    } else if (currentMode === "troubleshooting") {
+      renderTroubleshooting(await postJson("/troubleshooting/next", readJsonPayload(input)));
+    } else {
+      renderDiagnosis(await postJson("/diagnostics/analyze", readJsonPayload(input)));
+    }
   } catch (error) {
     showToast(error.message);
   }
 });
 
 document.querySelector("#agent-stream-btn").addEventListener("click", () => {
-  const payload = readJsonPayload(agentInput);
-  if (!payload) return;
-  runAgentStream(payload);
-});
-
-document.querySelector("#agent-risk-btn").addEventListener("click", () => {
-  agentInput.value = JSON.stringify(sampleRiskAgent, null, 2);
-  showToast("已载入一条高风险转人工问题");
-});
-
-document.querySelector("#analyze-btn").addEventListener("click", async () => {
-  try {
-    const payload = readTelemetryPayload();
-    if (!payload) return;
-    const result = await postJson("/diagnostics/analyze", payload);
-    renderDiagnosis(result);
-  } catch (error) {
-    showToast(error.message);
+  if (currentMode !== "question") {
+    showToast("流式查看当前只用于客户原话 Agent 问答");
+    return;
   }
+  runAgentStream(readQuestionPayload());
 });
 
-document.querySelector("#create-ticket-btn").addEventListener("click", async () => {
+createTicketButton.addEventListener("click", async () => {
+  if (!lastTicketPayload) {
+    showToast("当前结论没有可创建的工单草稿");
+    return;
+  }
   try {
-    const payload = readTelemetryPayload();
-    if (!payload) return;
-    const ticket = await postJson("/diagnostics/create-ticket", payload);
+    const ticket = await postJson("/tickets/create", lastTicketPayload);
     showToast(`已创建工单：${ticket.ticket_id}`);
-    await refreshTickets();
-    await refreshReport();
+    resetTicketAction();
+    await refreshAll();
   } catch (error) {
     showToast(error.message);
   }
 });
 
-document.querySelector("#troubleshooting-next-btn").addEventListener("click", async () => {
-  try {
-    const payload = readJsonPayload(troubleshootingInput);
-    if (!payload) return;
-    const result = await postJson("/troubleshooting/next", payload);
-    keepTroubleshootingSession(result.session_id);
-    renderTroubleshooting(result);
-  } catch (error) {
-    showToast(error.message);
-  }
-});
-
-document.querySelector("#troubleshooting-ticket-btn").addEventListener("click", async () => {
-  try {
-    const payload = readJsonPayload(troubleshootingInput);
-    if (!payload) return;
-    const ticket = await postJson("/troubleshooting/create-ticket", payload);
-    showToast(`已创建排障工单：${ticket.ticket_id}`);
-    await refreshTickets();
-    await refreshReport();
-  } catch {
-    showToast("当前排障结果暂不需要建单，或信息还不完整");
-  }
-});
-
-function readTelemetryPayload() {
-  return readJsonPayload(telemetryInput);
+function setInputMode(mode) {
+  currentMode = mode;
+  document.querySelectorAll("[data-input-mode]").forEach((button) => {
+    button.classList.toggle("active", button.dataset.inputMode === mode);
+  });
+  inputModePill.textContent = modeConfig[mode].label;
+  input.placeholder = modeConfig[mode].placeholder;
+  fillSample(mode);
+  resetResult();
 }
 
-function readJsonPayload(input) {
+function fillSample(mode) {
+  if (mode === "question") {
+    input.value = sampleQuestion;
+  } else if (mode === "troubleshooting") {
+    input.value = JSON.stringify(sampleTroubleshooting, null, 2);
+  } else {
+    input.value = JSON.stringify(sampleTelemetry, null, 2);
+  }
+}
+
+function readQuestionPayload() {
+  const raw = input.value.trim();
+  if (!raw) {
+    throw new Error("请先输入客户问题");
+  }
+  if (raw.startsWith("{")) {
+    return readJsonPayload(input);
+  }
+  return {
+    question: raw,
+    session_id: "demo-agent-session",
+    top_k: 3
+  };
+}
+
+function readJsonPayload(target) {
   try {
-    return JSON.parse(input.value);
+    return JSON.parse(target.value);
   } catch {
-    showToast("JSON 格式不正确，请检查输入");
-    return null;
+    throw new Error("JSON 格式不正确，请检查输入");
   }
 }
 
@@ -266,13 +271,16 @@ async function checkHealth() {
 async function refreshReport() {
   const response = await fetch("/eval/report");
   const report = await response.json();
-  ticketCount.textContent = report.ticket_count;
-  feedbackRate.textContent = `有用反馈率 ${(report.useful_feedback_rate * 100).toFixed(0)}%`;
+  feedbackRateValue.textContent = `${(report.useful_feedback_rate * 100).toFixed(0)}%`;
+  feedbackRate.textContent = `${report.feedback_count} 条反馈记录`;
 }
 
 async function refreshTickets() {
   const response = await fetch("/tickets");
   const tickets = await response.json();
+  openTicketCount.textContent = tickets.filter((ticket) => ticket.status === "open").length;
+  p1TicketCount.textContent = tickets.filter((ticket) => ticket.priority === "P1").length;
+  handoffTicketCount.textContent = tickets.filter((ticket) => isHandoffTicket(ticket)).length;
   if (!tickets.length) {
     ticketTable.innerHTML = `<tr><td colspan="5" class="empty-cell">暂无工单</td></tr>`;
     return;
@@ -292,52 +300,32 @@ async function refreshTickets() {
     .join("");
 }
 
-function renderDiagnosis(result) {
-  routePill.textContent = `${label(routeNames, result.route)} / ${result.priority}`;
+function renderAgent(result) {
+  routePill.textContent = `${label(routeNames, result.route)} / ${label(agentStatusNames, result.status)}`;
   routePill.classList.remove("muted");
-  diagnosisOutput.className = "result-grid";
-  diagnosisOutput.innerHTML = `
-    <div class="summary-strip">
-      <div class="summary-item">
-        <span>故障分类</span>
-        <strong>${escapeHtml(label(categoryNames, result.category))}</strong>
-      </div>
-      <div class="summary-item">
-        <span>优先级</span>
-        <strong>${escapeHtml(result.priority)}</strong>
-      </div>
-      <div class="summary-item">
-        <span>置信度</span>
-        <strong>${Math.round(result.confidence_score * 100)}%</strong>
-      </div>
-    </div>
-    ${result.findings.map(renderFinding).join("")}
+  setTicketAction(result.ticket_payload);
+  output.className = "result-grid";
+  output.innerHTML = `
+    ${renderDecisionSummary(result.route, result.status, result.confidence_score)}
+    ${renderAnswer(result.answer, result.route)}
+    ${renderFollowUpQuestions(result.follow_up_questions)}
     ${renderTicketPayload(result.ticket_payload)}
+    ${renderAgentEvidence(result.evidence)}
+    ${renderMemoryFacts(result.memory_facts)}
+    ${renderTraceDetails(result.react_trace)}
   `;
 }
 
 function renderTroubleshooting(result) {
-  troubleshootingRoutePill.textContent = `${label(routeNames, result.route)} / ${result.priority}`;
-  troubleshootingRoutePill.classList.remove("muted");
-  troubleshootingOutput.className = "result-grid";
-  troubleshootingOutput.innerHTML = `
-    <div class="summary-strip">
-      <div class="summary-item">
-        <span>识别类型</span>
-        <strong>${escapeHtml(result.issue_type)}</strong>
-      </div>
-      <div class="summary-item">
-        <span>处理路由</span>
-        <strong>${escapeHtml(label(routeNames, result.route))}</strong>
-      </div>
-      <div class="summary-item">
-        <span>置信度</span>
-        <strong>${Math.round(result.confidence_score * 100)}%</strong>
-      </div>
-    </div>
+  routePill.textContent = `${label(routeNames, result.route)} / ${result.priority}`;
+  routePill.classList.remove("muted");
+  setTicketAction(result.ticket_payload);
+  output.className = "result-grid";
+  output.innerHTML = `
+    ${renderDecisionSummary(result.route, "排障引导", result.confidence_score)}
     ${renderMissingFields(result.missing_fields)}
     ${renderFollowUpQuestions(result.follow_up_questions)}
-    <div class="finding ${result.priority === "P1" ? "critical" : "major"}">
+    <div class="finding">
       <div class="finding-title">
         <span>建议动作</span>
         <span>${escapeHtml(result.priority)}</span>
@@ -348,37 +336,46 @@ function renderTroubleshooting(result) {
   `;
 }
 
-function renderAgent(result) {
-  agentRoutePill.textContent = `${label(routeNames, result.route)} / ${label(agentStatusNames, result.status)}`;
-  agentRoutePill.classList.remove("muted");
-  agentOutput.className = "result-grid";
-  agentOutput.innerHTML = `
+function renderDiagnosis(result) {
+  routePill.textContent = `${label(routeNames, result.route)} / ${result.priority}`;
+  routePill.classList.remove("muted");
+  setTicketAction(result.ticket_payload);
+  output.className = "result-grid";
+  output.innerHTML = `
+    ${renderDecisionSummary(result.route, result.category, result.confidence_score)}
+    ${result.findings.map(renderFinding).join("")}
+    ${renderTicketPayload(result.ticket_payload)}
+  `;
+}
+
+function renderDecisionSummary(route, status, confidenceScore) {
+  return `
     <div class="summary-strip">
       <div class="summary-item">
         <span>处理路由</span>
-        <strong>${escapeHtml(label(routeNames, result.route))}</strong>
+        <strong>${escapeHtml(label(routeNames, route))}</strong>
       </div>
       <div class="summary-item">
-        <span>执行状态</span>
-        <strong>${escapeHtml(label(agentStatusNames, result.status))}</strong>
+        <span>当前状态</span>
+        <strong>${escapeHtml(statusLabel(status))}</strong>
       </div>
       <div class="summary-item">
         <span>置信度</span>
-        <strong>${Math.round(result.confidence_score * 100)}%</strong>
+        <strong>${Math.round(confidenceScore * 100)}%</strong>
       </div>
     </div>
-    <div class="finding">
+  `;
+}
+
+function renderAnswer(answer, route) {
+  return `
+    <div class="answer-card ${route === "handoff" ? "major" : ""}">
       <div class="finding-title">
-        <span>Agent 回答</span>
-        <span>${escapeHtml(result.route)}</span>
+        <span>建议回复</span>
+        <span>${escapeHtml(label(routeNames, route))}</span>
       </div>
-      <p>${escapeHtml(result.answer)}</p>
+      <p>${escapeHtml(answer)}</p>
     </div>
-    ${renderAgentPlan(result.plan)}
-    ${renderMemoryFacts(result.memory_facts)}
-    ${renderFollowUpQuestions(result.follow_up_questions)}
-    ${renderAgentEvidence(result.evidence)}
-    ${renderTicketPayload(result.ticket_payload)}
   `;
 }
 
@@ -391,16 +388,19 @@ function runAgentStream(payload) {
   if (payload.network_type) params.set("network_type", payload.network_type);
   if (payload.top_k) params.set("top_k", payload.top_k);
 
-  agentRoutePill.textContent = "流式执行中";
-  agentRoutePill.classList.remove("muted");
-  agentOutput.className = "result-grid";
-  agentOutput.innerHTML = `<div class="agent-stream" id="agent-stream-log"></div>`;
+  routePill.textContent = "流式执行中";
+  routePill.classList.remove("muted");
+  output.className = "result-grid";
+  output.innerHTML = `<div class="agent-stream" id="agent-stream-log"></div>`;
   const streamLog = document.querySelector("#agent-stream-log");
   const source = new EventSource(`/agent/respond/stream?${params.toString()}`);
 
   source.addEventListener("step", (event) => {
     const data = JSON.parse(event.data);
-    streamLog.insertAdjacentHTML("beforeend", `<div class="plan-step"><b>${escapeHtml(data.name)}</b><span>${escapeHtml(data.status)}</span></div>`);
+    streamLog.insertAdjacentHTML(
+      "beforeend",
+      `<div class="plan-step"><b>${escapeHtml(data.index)}. ${escapeHtml(label(actionNames, data.action))}</b><span>${escapeHtml(data.next_decision)}</span></div>`
+    );
   });
 
   source.addEventListener("result", (event) => {
@@ -414,19 +414,50 @@ function runAgentStream(payload) {
   };
 }
 
-function renderAgentPlan(plan) {
-  if (!plan.length) {
+function renderTraceDetails(trace) {
+  if (!trace || !trace.length) {
     return "";
   }
   return `
-    <div class="agent-plan">
-      ${plan
+    <details class="trace-details">
+      <summary>查看 Agent 执行过程</summary>
+      <div class="react-trace">
+        ${trace
+          .map(
+            (step) => `
+              <div class="react-step">
+                <div class="finding-title">
+                  <span>${escapeHtml(step.index)}. ${escapeHtml(label(actionNames, step.action))}</span>
+                  <span>${escapeHtml(step.action)}</span>
+                </div>
+                <p>${escapeHtml(step.reasoning_summary)}</p>
+                <p>${escapeHtml(step.next_decision)}</p>
+              </div>
+            `
+          )
+          .join("")}
+      </div>
+    </details>
+  `;
+}
+
+function renderAgentEvidence(evidence) {
+  if (!evidence.length) {
+    return `<div class="empty-state">没有可引用的知识库证据。</div>`;
+  }
+  return `
+    <div class="evidence-list">
+      <div class="section-label">参考依据</div>
+      ${evidence
         .map(
-          (step) => `
-            <div class="plan-step">
-              <b>${escapeHtml(step.index)}. ${escapeHtml(step.name)}</b>
-              <span>${escapeHtml(step.status)}</span>
-              <p>${escapeHtml(step.reason)}</p>
+          (item) => `
+            <div class="finding">
+              <div class="finding-title">
+                <span>${escapeHtml(item.source_id)} · ${escapeHtml(item.title)}</span>
+                <span>${Math.round(item.score * 100)}%</span>
+              </div>
+              <p>来源：${escapeHtml(item.source_type)} / ${escapeHtml(item.metadata.issue_type || "未分类")}</p>
+              <p>${escapeHtml(item.quote)}</p>
             </div>
           `
         )
@@ -435,30 +466,10 @@ function renderAgentPlan(plan) {
   `;
 }
 
-function renderAgentEvidence(evidence) {
-  if (!evidence.length) {
-    return `<div class="empty-state">没有可引用的知识库证据。</div>`;
-  }
-  return evidence
-    .map(
-      (item) => `
-        <div class="finding">
-          <div class="finding-title">
-            <span>${escapeHtml(item.source_id)} · ${escapeHtml(item.title)}</span>
-            <span>${Math.round(item.score * 100)}%</span>
-          </div>
-          <p>来源：${escapeHtml(item.source_type)} / ${escapeHtml(item.metadata.issue_type || "未分类")}</p>
-          <p>${escapeHtml(item.quote)}</p>
-        </div>
-      `
-    )
-    .join("");
-}
-
 function renderMemoryFacts(facts) {
   const entries = Object.entries(facts || {});
   if (!entries.length) {
-    return `<div class="empty-state">当前会话还没有沉淀上下文字段。</div>`;
+    return "";
   }
   return `
     <div class="field-list">
@@ -466,18 +477,6 @@ function renderMemoryFacts(facts) {
       ${entries.map(([key, value]) => `<b>${escapeHtml(fieldLabels[key] ?? key)}：${escapeHtml(value)}</b>`).join("")}
     </div>
   `;
-}
-
-function keepTroubleshootingSession(sessionId) {
-  if (!sessionId) {
-    return;
-  }
-  const payload = readJsonPayload(troubleshootingInput);
-  if (!payload) {
-    return;
-  }
-  payload.session_id = sessionId;
-  troubleshootingInput.value = JSON.stringify(payload, null, 2);
 }
 
 function renderMissingFields(fields) {
@@ -496,22 +495,27 @@ function renderFollowUpQuestions(questions) {
   if (!questions.length) {
     return "";
   }
-  return questions
-    .map(
-      (item, index) => `
-        <div class="finding">
-          <div class="finding-title">
-            <span>追问 ${index + 1}</span>
-            <span>${escapeHtml(fieldLabels[item.field] ?? item.field)}</span>
-          </div>
-          <p>${escapeHtml(item.question)}</p>
-          <div class="option-row">
-            ${item.options.map((option) => `<span>${escapeHtml(option)}</span>`).join("")}
-          </div>
-        </div>
-      `
-    )
-    .join("");
+  return `
+    <div class="evidence-list">
+      <div class="section-label">需要继续追问客户</div>
+      ${questions
+        .map(
+          (item, index) => `
+            <div class="finding">
+              <div class="finding-title">
+                <span>追问 ${index + 1}</span>
+                <span>${escapeHtml(fieldLabels[item.field] ?? item.field)}</span>
+              </div>
+              <p>${escapeHtml(item.question)}</p>
+              <div class="option-row">
+                ${item.options.map((option) => `<span>${escapeHtml(option)}</span>`).join("")}
+              </div>
+            </div>
+          `
+        )
+        .join("")}
+    </div>
+  `;
 }
 
 function renderFinding(finding) {
@@ -529,7 +533,7 @@ function renderFinding(finding) {
 
 function renderTicketPayload(payload) {
   if (!payload) {
-    return `<div class="empty-state">当前诊断不需要创建工单。</div>`;
+    return "";
   }
   return `
     <div class="finding major">
@@ -541,6 +545,28 @@ function renderTicketPayload(payload) {
       <p>建议动作：${escapeHtml(label(actionNames, payload.suggested_action))}</p>
     </div>
   `;
+}
+
+function setTicketAction(payload) {
+  lastTicketPayload = payload || null;
+  createTicketButton.disabled = !lastTicketPayload;
+}
+
+function resetTicketAction() {
+  setTicketAction(null);
+}
+
+function resetResult() {
+  routePill.textContent = "未运行";
+  routePill.classList.add("muted");
+  output.className = "empty-state";
+  output.textContent = "输入客户问题后，这里会优先展示可直接发给客户的结论；参考依据和 Agent 执行过程会放在下方。";
+  resetTicketAction();
+}
+
+function isHandoffTicket(ticket) {
+  const text = `${ticket.category} ${ticket.summary} ${ticket.suggested_action}`;
+  return /人工|复核|风险|投诉|赔偿|安全|低置信度/.test(text);
 }
 
 function showToast(message) {
@@ -561,6 +587,10 @@ function escapeHtml(value) {
 
 function label(dictionary, value) {
   return dictionary[value] ?? value;
+}
+
+function statusLabel(value) {
+  return agentStatusNames[value] ?? categoryNames[value] ?? value;
 }
 
 function translateEvidence(value) {

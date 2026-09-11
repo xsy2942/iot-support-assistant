@@ -2,16 +2,16 @@
 
 IoT 设备售后智能体与工单闭环系统。
 
-这是一个面向 IoT 设备售后场景的个人项目，重点覆盖设备离线、MQTT 连接超时、网关心跳丢失、固件升级失败、传感器采样异常、温湿度/振动/电压异常等问题。项目主链路是 Python 自研 Agent：先路由，再规划，再调用本地知识库检索、排障树、MCP 工具和工单服务，最后做证据校验与转人工判断。
+这是一个面向 IoT 设备售后场景的个人项目，重点覆盖设备离线、MQTT 连接超时、网关心跳丢失、固件升级失败、传感器采样异常、温湿度/振动/电压异常等问题。项目主链路是 Python 自研 ReAct Agent：根据每轮 Observation 动态选择 memory.read、troubleshooting.guide、knowledge.search、ticket.draft、final.answer 等工具，最后做证据校验与转人工判断。
 
 ## 当前进度
 
 已完成：
 
-- 124 条 IoT 售后知识分块：FAQ、错误码说明、历史工单、产品手册。
-- 60 条问答评测集与本地 RAG sanity check。
-- 40 条遥测诊断样例与诊断评测脚本。
-- Python Agent 编排接口：Fast Router -> Structured Planner -> Knowledge Search -> Capability Executor -> Verifier。
+- 500 条 IoT 售后知识分块：FAQ、错误码说明、历史工单、产品手册。
+- 150 条生成问答评测集、40 条挑战评测集与本地 RAG / Agent 评测。
+- 120 条遥测样例与 80 条诊断评测脚本。
+- Python ReAct Agent 编排接口：Reason -> Action -> Observation -> Verify 动态执行链。
 - 本地混合检索：基于 `knowledge_chunks.csv` 做中文字符 n-gram 向量检索 + 设备型号/错误码关键词加权，并支持父子块聚合去重。
 - Agent 会话记忆：通过 `session_id` 合并多轮设备型号、错误码、网络状态等上下文字段，Redis 可选持久化短期记忆。
 - MCP Server：基于官方 `mcp` Python SDK 暴露 `agent_respond`、`knowledge_search`、`ticket_create` 工具，并提供知识库资源与 Prompt 模板。
@@ -115,17 +115,22 @@ AGENT_MEMORY_TTL_SECONDS=1800
 - `reports/agent_eval_report.json`
 - `reports/diagnostic_eval_report.json`
 
-当前本地评测是模拟数据 sanity check，指标偏理想；最终简历数字建议以本地 Agent 跑完 60 条问答和 40 条诊断用例后的结果为准。
+当前评测分成两层：生成集用于验证链路可复现，挑战集用于检查口语改写、信息缺失、未知错误码和高风险转人工边界。不要把生成集 100% 写成真实泛化能力，简历更建议写合并挑战集后的指标。
+
+当前本地结果：
+
+- 生成问答集：150 条，Top3 召回率 100%，路由准确率 100%。
+- 合并挑战集：190 条，Top3 召回率 97.89%，路由准确率 95.79%，严格证据匹配率 83.33%，转人工准确率 92.31%，追问准确率 72.73%。
+- 诊断评测集：80 条，分类、优先级、路由准确率 100%。
 
 ## Agent 主链路
 
-当前项目不把模型输出直接当作任务完成，而是把一次用户请求拆成结构化执行链：
+当前项目不把模型输出直接当作任务完成，而是把一次用户请求交给 ReAct-style 执行器动态选择工具：
 
-1. `Fast Router`：判断问题是信息不足、知识库可答、规则诊断还是需要转人工。
-2. `Structured Planner`：生成可执行步骤，避免模型随意发挥。
-3. `Knowledge Search`：在 `data/processed/knowledge_chunks.csv` 中做本地混合检索。
-4. `Capability Executor`：调用知识库检索、轻量排障树和工单草稿工具。
-5. `Verifier`：检查是否有引用证据、是否命中高风险词、最终状态是 `COMPLETE / PARTIAL / UNKNOWN / INCOMPLETE`。
+1. `Reason`：基于当前问题、会话记忆和上一轮 Observation 判断下一步。
+2. `Action`：动态选择 `memory.read`、`troubleshooting.guide`、`knowledge.search`、`ticket.draft`、`final.answer` 等工具。
+3. `Observation`：记录工具返回的缺失字段、召回证据、风险信号或工单草稿。
+4. `Verify`：检查是否有引用证据、是否命中高风险词、最终状态是 `COMPLETE / PARTIAL / UNKNOWN / INCOMPLETE`。
 
 Agent 记忆策略：
 
@@ -161,6 +166,7 @@ Invoke-RestMethod -Method Post -Uri http://127.0.0.1:8000/agent/respond -Content
 
 - [docs/setup.md](docs/setup.md)
 - [docs/agent_architecture.md](docs/agent_architecture.md)
+- [docs/evaluation_methodology.md](docs/evaluation_methodology.md)
 - [docs/model_config.md](docs/model_config.md)
 - [docs/postgresql.md](docs/postgresql.md)
 - [docs/diagnostics.md](docs/diagnostics.md)

@@ -10,7 +10,6 @@ from fastapi import FastAPI, HTTPException, Query
 from fastapi.responses import FileResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 
-from .agent import SupportAgent
 from .agent_memory import AgentMemoryStore
 from .diagnostics import analyze_telemetry
 from .mcp import McpToolServer
@@ -29,6 +28,7 @@ from .models import (
     TroubleshootingRequest,
     TroubleshootingResult,
 )
+from .react_agent import ReActSupportAgent
 from .session_store import TroubleshootingSessionStore
 from .storage import create_ticket_store
 from .troubleshooting import guide_troubleshooting
@@ -46,7 +46,7 @@ AGENT_MEMORY_TTL_SECONDS = int(os.getenv("AGENT_MEMORY_TTL_SECONDS", str(SESSION
 STATIC_DIR = ROOT / "static"
 store = create_ticket_store(db_url=DB_URL, db_path=DB_PATH)
 session_store = TroubleshootingSessionStore(redis_url=REDIS_URL, ttl_seconds=SESSION_TTL_SECONDS)
-support_agent = SupportAgent()
+support_agent = ReActSupportAgent()
 agent_memory_store = AgentMemoryStore(redis_url=AGENT_MEMORY_REDIS_URL, ttl_seconds=AGENT_MEMORY_TTL_SECONDS)
 mcp_server = McpToolServer(agent=support_agent, ticket_store=store, memory_store=agent_memory_store)
 db_backend = "postgresql" if DB_URL else "sqlite"
@@ -142,13 +142,9 @@ def stream_agent_response(
     )
 
     def events():
-        for event_name, data in [
-            ("step", {"name": "Fast Router", "status": "running"}),
-            ("step", {"name": "Structured Planner", "status": "running"}),
-            ("step", {"name": "Knowledge Search", "status": "running"}),
-        ]:
-            yield _sse(event_name, data)
         response = respond_with_agent(payload)
+        for step in response.react_trace:
+            yield _sse("step", step.model_dump())
         yield _sse("result", response.model_dump())
 
     return StreamingResponse(events(), media_type="text/event-stream")

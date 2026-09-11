@@ -81,8 +81,8 @@ def build_faq() -> list[dict[str, object]]:
     firmware_versions = ["v1.2.0", "v1.4.3", "v2.0.1", "v2.3.0"]
     for product_line, models in PRODUCT_LINES.items():
         for model in models:
-            for issue, steps in ISSUES[:5]:
-                if faq_id > 40:
+            for issue, steps in ISSUES:
+                if faq_id > 100:
                     return rows
                 rows.append(
                     {
@@ -130,7 +130,7 @@ def build_tickets() -> list[dict[str, object]]:
     rows = []
     models = [model for values in PRODUCT_LINES.values() for model in values]
     base_time = datetime(2026, 4, 1, 9, 0, 0)
-    for i in range(1, 51):
+    for i in range(1, 301):
         model = models[i % len(models)]
         issue, steps = ISSUES[i % len(ISSUES)]
         error_code = ERRORS[(i * 3) % len(ERRORS)][0]
@@ -159,48 +159,64 @@ def build_tickets() -> list[dict[str, object]]:
 
 def build_manuals() -> list[dict[str, object]]:
     manuals = []
-    manual_specs = [
-        ("MAN-001", "GW-200 快速运维手册", "GW-200", "工业网关", ["设备上线", "MQTT 配置", "心跳诊断", "日志导出"]),
-        ("MAN-002", "TH-30 环境传感器安装手册", "TH-30", "环境传感器", ["安装位置", "温湿度校准", "采样周期", "异常读数"]),
-        ("MAN-003", "VB-300 振动监测调试手册", "VB-300", "振动监测", ["安装底座", "采样频率", "阈值模板", "误报告警"]),
-        ("MAN-004", "PM-200 电力采集排障手册", "PM-200", "电力采集", ["相序检查", "倍率设置", "电压电流采样", "告警规则"]),
+    manual_chapters = [
+        "设备上线",
+        "MQTT 配置",
+        "心跳诊断",
+        "日志导出",
+        "固件升级",
+        "告警处理",
+        "转人工边界",
     ]
-    for doc_id, title, model, line, chapters in manual_specs:
-        content = [
-            f"# {title}",
-            "",
-            f"适用产品线：{line}",
-            f"适用设备型号：{model}",
-            "适用固件版本：v1.2.0 及以上",
-            "",
-        ]
-        for chapter in chapters:
-            content.extend(
-                [
-                    f"## {chapter}",
-                    f"{model} 在处理{chapter}相关问题时，应先确认设备状态、现场接线、平台配置和最近日志。",
-                    "若问题涉及安全风险、客户投诉、数据丢失或远程操作失败，应停止强行给出结论并生成工单交由人工复核。",
-                    "",
-                ]
+    manual_index = 1
+    for line, models in PRODUCT_LINES.items():
+        for model in models:
+            doc_id = f"MAN-{manual_index:03d}"
+            title = f"{model} 售后排障手册"
+            chapters = manual_chapters
+            if line == "环境传感器":
+                chapters = ["安装位置", "温湿度校准", "采样周期", "异常读数", "探头接线", "环境干扰", "转人工边界"]
+            elif line == "振动监测":
+                chapters = ["安装底座", "采样频率", "阈值模板", "误报告警", "轴承工况", "振动趋势", "转人工边界"]
+            elif line == "电力采集":
+                chapters = ["相序检查", "倍率设置", "电压电流采样", "互感器方向", "告警规则", "安全隔离", "转人工边界"]
+            content = [
+                f"# {title}",
+                "",
+                f"适用产品线：{line}",
+                f"适用设备型号：{model}",
+                "适用固件版本：v1.2.0 及以上",
+                "",
+            ]
+            for chapter in chapters:
+                content.extend(
+                    [
+                        f"## {chapter}",
+                        f"{model} 在处理{chapter}相关问题时，应先确认设备状态、现场接线、平台配置和最近日志。",
+                        "若问题涉及安全风险、客户投诉、数据丢失或远程操作失败，应停止强行给出结论并生成工单交由人工复核。",
+                        "",
+                    ]
+                )
+            manuals.append(
+                {
+                    "doc_id": doc_id,
+                    "title": title,
+                    "product_line": line,
+                    "device_model": model,
+                    "firmware_version": "v1.2.0+",
+                    "source_type": "产品手册",
+                    "chapters": chapters,
+                    "content": "\n".join(content),
+                }
             )
-        manuals.append(
-            {
-                "doc_id": doc_id,
-                "title": title,
-                "product_line": line,
-                "device_model": model,
-                "firmware_version": "v1.2.0+",
-                "source_type": "产品手册",
-                "content": "\n".join(content),
-            }
-        )
+            manual_index += 1
     return manuals
 
 
 def build_eval_questions() -> list[dict[str, object]]:
     rows = []
     models = [model for values in PRODUCT_LINES.values() for model in values]
-    for i in range(1, 43):
+    for i in range(1, 111):
         model = models[i % len(models)]
         issue, _ = ISSUES[i % len(ISSUES)]
         rows.append(
@@ -213,7 +229,7 @@ def build_eval_questions() -> list[dict[str, object]]:
                 "difficulty": "single_doc",
             }
         )
-    for i in range(43, 55):
+    for i in range(111, 136):
         model = models[i % len(models)]
         code, title, *_ = ERRORS[i % len(ERRORS)]
         rows.append(
@@ -234,7 +250,12 @@ def build_eval_questions() -> list[dict[str, object]]:
         "客户投诉多次维修未解决，要求升级负责人介入。",
         "设备涉及人身安全事故，客户要求立即给出责任结论。",
     ]
-    for offset, question in enumerate(handoff_questions, start=55):
+    extra_handoff_questions = [
+        f"客户投诉 {model} 多次维修后仍然{issue}，要求给责任结论。"
+        for model in models[:5]
+        for issue, _ in ISSUES[:2]
+    ]
+    for offset, question in enumerate((handoff_questions + extra_handoff_questions)[:15], start=136):
         rows.append(
             {
                 "question_id": f"Q-{offset:03d}",
@@ -295,18 +316,22 @@ def build_knowledge_chunks(
             }
         )
     for row in manuals:
-        chunks.append(
-            {
-                "chunk_id": row["doc_id"],
-                "source_type": row["source_type"],
-                "title": row["title"],
-                "product_line": row["product_line"],
-                "device_model": row["device_model"],
-                "error_code": "",
-                "issue_type": "产品手册",
-                "content": row["content"],
-            }
-        )
+        for chapter_index, chapter in enumerate(row["chapters"], start=1):
+            chunks.append(
+                {
+                    "chunk_id": f"{row['doc_id']}-CH{chapter_index:02d}",
+                    "source_type": row["source_type"],
+                    "title": f"{row['title']} - {chapter}",
+                    "product_line": row["product_line"],
+                    "device_model": row["device_model"],
+                    "error_code": "",
+                    "issue_type": chapter,
+                    "content": (
+                        f"{row['device_model']} {chapter}章节：处理相关问题时，应先确认设备状态、现场接线、平台配置和最近日志。"
+                        "若问题涉及安全风险、客户投诉、数据丢失或远程操作失败，应停止强行给出结论并生成工单交由人工复核。"
+                    ),
+                }
+            )
     return chunks
 
 

@@ -1,6 +1,6 @@
 # Python Agent 主链路说明
 
-这个项目的主链路是一个 Python 实现的轻量 Agent 服务。它的目标不是让模型无限自由地行动，而是把售后问题拆成可控步骤：先判断问题类型，再决定是否追问、检索知识库、生成回答或转人工工单。
+这个项目的主链路是一个 Python 实现的 ReAct-style Agent 服务。它的目标不是像 n8n 一样固定跑完所有节点，而是根据每轮 Observation 动态决定下一步调用哪个工具：先读会话记忆，再判断是否追问、检索知识库、生成回答或转人工工单。
 
 ## 为什么叫 Agent
 
@@ -10,15 +10,16 @@
 用户问题 -> 知识库检索 -> 大模型回答
 ```
 
-本项目的 Agent 链路是：
+本项目的 ReAct Agent 链路是：
 
 ```text
 用户问题
-  -> Fast Router
-  -> Structured Planner
-  -> Memory / Knowledge Search / Troubleshooting Tree / Ticket Draft
-  -> Verifier
-  -> 回答 / 追问 / 转人工
+  -> Reason
+  -> Action: memory.read / troubleshooting.guide / knowledge.search / ticket.draft / final.answer
+  -> Observation
+  -> Reason
+  -> ...
+  -> Verify
 ```
 
 也就是说，系统不是只做“检索 + 回答”，而是会根据不同情况选择不同动作：
@@ -30,23 +31,23 @@
 
 ## 核心模块
 
-### Fast Router
+### ReAct Executor
 
-位置：`ticket_service/agent.py`
+位置：`ticket_service/react_agent.py`
 
-作用：判断用户问题应该走哪条路线。比如“设备连不上了”太模糊，就进入追问；“GW-200 报 E104 且 MQTT 超时”比较具体，就进入知识库检索；出现“冒烟、赔偿、投诉、数据丢失”等词，直接转人工。
+作用：每一轮根据已有 Observation 选择下一步 Action，而不是固定跑完一套流程。比如“设备连不上了”会先读 memory，再调用排障树发现缺少字段，最后进入追问；“GW-200 报 E104 且 MQTT 超时”会读 memory 后直接检索知识库并生成带引用回答；出现“冒烟、赔偿、投诉、数据丢失”等词会优先生成转人工工单草稿。
 
-### Structured Planner
+当前工具动作：
 
-位置：`ticket_service/agent.py`
+- `memory.read`
+- `troubleshooting.guide`
+- `knowledge.search`
+- `ticket.draft`
+- `final.clarify`
+- `final.answer`
+- `final.handoff`
 
-作用：把一次请求拆成固定步骤。当前最多 5 步：
-
-```text
-Fast Router -> Structured Planner -> Knowledge Search -> Capability Executor -> Verifier
-```
-
-这样做的好处是执行链稳定，便于调试和评测，不会把模型返回的一段文字直接当作任务完成。
+返回结果里会包含 `react_trace`，用于展示每一轮的 reasoning summary、action、observation 和 next decision。
 
 ### Knowledge Search
 
@@ -76,11 +77,11 @@ Fast Router -> Structured Planner -> Knowledge Search -> Capability Executor -> 
 - 保存设备型号、固件版本、错误码、在线状态、网络类型、MQTT 状态等结构化事实。
 - 保存最近 20 轮对话摘要，避免会话无限膨胀。
 
-### Capability Executor
+### Capability Tools
 
-位置：`ticket_service/agent.py`、`ticket_service/troubleshooting.py`
+位置：`ticket_service/react_agent.py`、`ticket_service/troubleshooting.py`、`ticket_service/knowledge_base.py`
 
-作用：执行工具能力。当前注册的能力包括：
+作用：给 ReAct Executor 调用的确定性工具能力。当前注册的能力包括：
 
 - 本地知识库检索
 - 轻量多轮排障树
@@ -119,7 +120,7 @@ Fast Router -> Structured Planner -> Knowledge Search -> Capability Executor -> 
 
 ### Verifier
 
-位置：`ticket_service/agent.py`
+位置：`ticket_service/react_agent.py`
 
 作用：检查输出是否有证据、是否高风险、是否信息不足，并给出结构化状态：
 
@@ -131,19 +132,19 @@ Fast Router -> Structured Planner -> Knowledge Search -> Capability Executor -> 
 ## 主链路实现
 
 - 本地知识库检索由 `ticket_service/knowledge_base.py` 完成。
-- Agent 编排由 `ticket_service/agent.py` 完成。
+- Agent 编排由 `ticket_service/react_agent.py` 完成。
 - MCP Server 由 `ticket_service/mcp_server.py` 完成。
 - 工单闭环由 FastAPI + PostgreSQL/SQLite 完成。
 
 简历上更稳的说法是：
 
 ```text
-使用 Python/FastAPI 实现 IoT 售后 Agent 主链路，设计 Fast Router、Structured Planner、本地混合检索、轻量排障树、MCP Server、Verifier 和工单闭环。
+使用 Python/FastAPI 实现 IoT 售后 ReAct Agent 主链路，设计动态工具选择、本地混合检索、轻量排障树、Redis 会话记忆、MCP Server、Verifier 和工单闭环。
 ```
 
 ## 当前边界
 
-当前项目已经实现轻量 Agent 编排、会话记忆、父子块路由、SSE 流式输出和官方 MCP SDK 工具服务，但还没有实现以下重型能力：
+当前项目已经实现 ReAct-style Agent 编排、会话记忆、父子块路由、SSE 流式输出和官方 MCP SDK 工具服务，但还没有实现以下重型能力：
 
 - HMAC 工具审批
 - Kafka 异步任务队列
