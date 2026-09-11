@@ -79,6 +79,22 @@ class AgentMemoryStore:
         facts = stored.get("facts", {}) if stored else {}
         return {key: str(value) for key, value in facts.items() if value is not None and value != ""}
 
+    def session(self, session_id: str) -> dict[str, object]:
+        stored = self._load(session_id)
+        return {
+            "session_id": session_id,
+            "backend": self.backend,
+            "facts": stored.get("facts", {}) if stored else {},
+            "turns": stored.get("turns", []) if stored else [],
+            "updated_at": stored.get("updated_at") if stored else None,
+            "ttl_seconds": self.ttl_seconds,
+        }
+
+    def clear(self, session_id: str) -> bool:
+        if self._client:
+            return bool(self._client.delete(self._key(session_id)))
+        return self._memory.pop(session_id, None) is not None
+
     def _load(self, session_id: str) -> dict[str, object]:
         if self._client:
             raw = self._client.get(self._key(session_id))

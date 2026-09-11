@@ -1,6 +1,6 @@
 # Python Agent 主链路说明
 
-这个项目的主链路不是 FastGPT 配置流，而是一个 Python 实现的轻量 Agent 服务。它的目标不是让模型无限自由地行动，而是把售后问题拆成可控步骤：先判断问题类型，再决定是否追问、检索知识库、生成回答或转人工工单。
+这个项目的主链路是一个 Python 实现的轻量 Agent 服务。它的目标不是让模型无限自由地行动，而是把售后问题拆成可控步骤：先判断问题类型，再决定是否追问、检索知识库、生成回答或转人工工单。
 
 ## 为什么叫 Agent
 
@@ -88,19 +88,28 @@ Fast Router -> Structured Planner -> Knowledge Search -> Capability Executor -> 
 
 这里的“工具调用”是确定性的 Python 函数调用，不是让 LLM 自己随便调用外部接口。
 
-### MCP-style Tool Server
+### MCP Server
 
-位置：`ticket_service/mcp.py`
+位置：`ticket_service/mcp_server.py`
 
-作用：把项目里的能力包装成 JSON-RPC 工具入口，便于模拟 MCP 工具发现和调用。
+作用：基于官方 `mcp` Python SDK，把项目里的 Agent、知识库检索和工单能力暴露为标准 MCP 工具。
 
 当前支持：
 
-- `initialize`：返回服务信息和工具能力。
-- `tools/list`：列出可调用工具。
-- `tools/call`：调用 `agent.respond`、`knowledge.search`、`tickets.create`。
+- `agent_respond`：执行 Agent 主链路，包含 memory、RAG、追问和转人工。
+- `knowledge_search`：执行本地 IoT 知识库父子块检索。
+- `ticket_create`：创建转人工工单。
+- `iot://knowledge/summary`：知识库统计资源。
+- `iot_support_prompt`：IoT 售后支持 Prompt 模板。
 
-这让项目从“后端接口”更进一步变成“Agent 可调用工具集”。当前是轻量 MCP-style 实现，不声称已经做了完整外部 MCP Server 发布、鉴权和多客户端连接管理。
+运行方式：
+
+```powershell
+.\.venv\Scripts\python.exe -m ticket_service.mcp_server --transport stdio
+.\.venv\Scripts\python.exe -m ticket_service.mcp_server --transport streamable-http --host 127.0.0.1 --port 8010 --path /mcp
+```
+
+这让项目从“普通后端接口”进一步变成“可被 MCP 客户端发现和调用的 Agent 工具服务”。`ticket_service/mcp.py` 中的 JSON-RPC 入口只作为普通 HTTP 兼容层保留，不作为项目主 MCP 实现。
 
 ### SSE Streaming
 
@@ -119,23 +128,22 @@ Fast Router -> Structured Planner -> Knowledge Search -> Capability Executor -> 
 - `UNKNOWN`：知识库未命中可靠资料，不强答。
 - `INCOMPLETE`：用户信息不足，先追问。
 
-## 和 FastGPT 的关系
+## 主链路实现
 
-FastGPT 现在不是主链路。它只作为可选外部平台：
-
-- 可以导入同一份 `knowledge_chunks.csv` 做对照演示。
-- 可以展示外部 RAG/Workflow 平台如何调用本地工单接口。
-- 不把 FastGPT 源码放进本仓库，不把个人项目包装成“改了 FastGPT 源码”。
+- 本地知识库检索由 `ticket_service/knowledge_base.py` 完成。
+- Agent 编排由 `ticket_service/agent.py` 完成。
+- MCP Server 由 `ticket_service/mcp_server.py` 完成。
+- 工单闭环由 FastAPI + PostgreSQL/SQLite 完成。
 
 简历上更稳的说法是：
 
 ```text
-使用 Python/FastAPI 实现 IoT 售后 Agent 主链路，设计 Fast Router、Structured Planner、本地混合检索、轻量排障树、Verifier 和工单闭环；FastGPT 作为可选外部 RAG 平台进行对照接入。
+使用 Python/FastAPI 实现 IoT 售后 Agent 主链路，设计 Fast Router、Structured Planner、本地混合检索、轻量排障树、MCP Server、Verifier 和工单闭环。
 ```
 
 ## 当前边界
 
-当前项目已经实现轻量 Agent 编排、会话记忆、父子块路由、SSE 流式输出和 MCP-style 工具入口，但还没有实现以下重型能力：
+当前项目已经实现轻量 Agent 编排、会话记忆、父子块路由、SSE 流式输出和官方 MCP SDK 工具服务，但还没有实现以下重型能力：
 
 - HMAC 工具审批
 - Kafka 异步任务队列

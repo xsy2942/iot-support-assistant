@@ -2,8 +2,8 @@
 
 本项目接入两个大模型提供方和一个联网检索工具：
 
-- DeepSeek：默认生成模型，当前 FastGPT 应用使用 `deepseek-chat`。
-- 阿里云百炼：OpenAI-compatible 生成模型与向量模型，当前知识库使用 `text-embedding-v4`。
+- DeepSeek：可选生成模型，本地 RAG 脚本可使用 `deepseek-chat` 对检索证据进行回答润色。
+- 阿里云百炼：OpenAI-compatible 生成模型与向量模型，可作为备用 LLM 或后续 pgvector 向量化来源。
 - Tavily：联网检索工具，用于补充公开资料，不替代本地 IoT 售后知识库。
 
 ## 本地密钥
@@ -35,17 +35,18 @@ TAVILY_BASE_URL=https://api.tavily.com
 .\.venv\Scripts\python.exe scripts\check_tavily.py
 ```
 
-## FastGPT 模型配置
+## 当前使用方式
 
-FastGPT 的 AIProxy 已配置两个模型渠道：
+主服务 `ticket_service` 默认使用确定性 Python Agent 和本地知识库检索，不要求必须配置大模型密钥。
 
-- `DeepSeek IoT Chat`：`deepseek-chat`
-- `Bailian IoT Chat & Embedding`：`qwen-plus`、`text-embedding-v4`
+如果要演示“大模型基于证据生成回答”，可以运行：
 
-FastGPT 系统模型表中已启用：
+```powershell
+.\.venv\Scripts\python.exe scripts\ask_rag.py "GW-200 报 E104 且 MQTT 连接超时，应该怎么排查？" --provider deepseek
+```
 
-- `deepseek-chat`：LLM
-- `qwen-plus`：LLM
-- `text-embedding-v4`：Embedding
+如果要启用联网补充检索，可以加：
 
-知识库向量模型使用 `text-embedding-v4`，应用回答模型使用 `deepseek-chat`。
+```powershell
+.\.venv\Scripts\python.exe scripts\ask_rag.py "MQTT TLS 证书过期如何排查？" --provider deepseek --web
+```

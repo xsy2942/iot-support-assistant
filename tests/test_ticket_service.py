@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 import importlib
 
 from fastapi.testclient import TestClient
@@ -236,6 +237,19 @@ def test_agent_memory_merges_session_context(tmp_path, monkeypatch):
     assert body["memory_facts"]["device_model"] == "GW-200"
     assert body["memory_facts"]["error_code"] == "E104"
 
+    memory = client.get("/agent/memory/memory-test")
+    assert memory.status_code == 200
+    assert memory.json()["facts"]["device_model"] == "GW-200"
+    assert len(memory.json()["turns"]) == 2
+
+    cleared = client.delete("/agent/memory/memory-test")
+    assert cleared.status_code == 200
+    assert cleared.json()["cleared"] is True
+
+    empty = client.get("/agent/memory/memory-test")
+    assert empty.status_code == 200
+    assert empty.json()["facts"] == {}
+
 
 def test_agent_evidence_contains_parent_child_route(tmp_path, monkeypatch):
     client = make_client(tmp_path, monkeypatch)
@@ -294,3 +308,33 @@ def test_mcp_lists_and_calls_agent_tool(tmp_path, monkeypatch):
     assert body["jsonrpc"] == "2.0"
     assert body["result"]["content"][0]["type"] == "text"
     assert "parent_id" in body["result"]["content"][0]["text"]
+
+
+def test_official_mcp_server_exposes_tools_and_resources(tmp_path, monkeypatch):
+    monkeypatch.setenv("TICKET_DB_PATH", str(tmp_path / "mcp-tickets.sqlite3"))
+    monkeypatch.setenv("TICKET_DB_URL", "")
+    monkeypatch.setenv("AGENT_MEMORY_REDIS_URL", "")
+
+    from ticket_service.mcp_server import build_mcp_server
+
+    async def run_check():
+        server = build_mcp_server()
+        tools = await server.list_tools()
+        tool_names = {tool.name for tool in tools}
+        assert {"agent_respond", "knowledge_search", "ticket_create"} <= tool_names
+
+        resources = await server.list_resources()
+        assert "iot://knowledge/summary" in {str(resource.uri) for resource in resources}
+
+        result = await server.call_tool(
+            "agent_respond",
+            {
+                "question": "GW-200 报 E104 且 MQTT 连接超时，应该怎么排查？",
+                "device_model": "GW-200",
+                "error_code": "E104",
+            },
+        )
+        assert result.structured_content["route"] == "rag_answer"
+        assert result.structured_content["evidence"]
+
+    asyncio.run(run_check())

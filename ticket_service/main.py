@@ -113,6 +113,16 @@ def respond_with_agent(payload: AgentRequest) -> AgentResponse:
     return response
 
 
+@app.get("/agent/memory/{session_id}")
+def get_agent_memory(session_id: str) -> dict[str, Any]:
+    return agent_memory_store.session(session_id)
+
+
+@app.delete("/agent/memory/{session_id}")
+def clear_agent_memory(session_id: str) -> dict[str, Any]:
+    return {"session_id": session_id, "cleared": agent_memory_store.clear(session_id)}
+
+
 @app.get("/agent/respond/stream")
 def stream_agent_response(
     question: str,

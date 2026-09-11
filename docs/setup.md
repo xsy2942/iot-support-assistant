@@ -16,6 +16,7 @@ D:\pycmexercise\agentx2
 - 本地密钥：`D:\pycmexercise\agentx2\.env`
 - PostgreSQL 工单数据库：通过 `.env` 里的 `TICKET_DB_URL` 连接
 - Redis 排障上下文：通过 `.env` 里的 `TROUBLESHOOTING_REDIS_URL` 连接
+- Redis Agent 记忆：通过 `.env` 里的 `AGENT_MEMORY_REDIS_URL` 连接
 - SQLite 兜底数据库：`D:\pycmexercise\agentx2\data\generated\tickets.sqlite3`
 
 当前项目没有使用 `D:\pycmexercise\ai-recruit-agent-main` 里的环境或工具。
@@ -27,10 +28,11 @@ D:\pycmexercise\agentx2
 | Git | 项目版本管理 |
 | Python 3 | 数据生成、评测脚本、FastAPI 工单服务 |
 | FastAPI / Uvicorn | 本地工单服务与中文前端托管 |
+| MCP Python SDK | 独立 MCP Server，暴露 Agent、知识库检索和工单工具 |
 | PostgreSQL | 工单与反馈主存储 |
-| Redis | 多轮排障短期上下文，可选启用 |
+| Redis | 多轮排障与 Agent 记忆短期上下文，可选启用 |
 | SQLite | 本地测试或未配置 PostgreSQL 时的兜底存储 |
-| Docker Desktop / Docker Compose | 运行 FastGPT 及其依赖服务 |
+| Docker Desktop / Docker Compose | 可选运行 PostgreSQL / Redis 等本地基础服务 |
 | DeepSeek API | RAG 回答生成 |
 | 阿里云百炼 API | LLM 备用与 Embedding |
 | Tavily API | 联网检索补充 |
@@ -66,6 +68,8 @@ TICKET_DB_URL=postgresql://postgres:postgres@localhost:5432/iot_support_assistan
 ```text
 TROUBLESHOOTING_REDIS_URL=redis://localhost:6379/0
 TROUBLESHOOTING_SESSION_TTL_SECONDS=1800
+AGENT_MEMORY_REDIS_URL=redis://localhost:6379/0
+AGENT_MEMORY_TTL_SECONDS=1800
 ```
 
 如果 `TROUBLESHOOTING_REDIS_URL` 为空，排障接口仍可无状态运行。
@@ -80,47 +84,41 @@ TROUBLESHOOTING_SESSION_TTL_SECONDS=1800
 - API 文档：[http://127.0.0.1:8000/docs](http://127.0.0.1:8000/docs)
 - 健康检查：[http://127.0.0.1:8000/health](http://127.0.0.1:8000/health)
 
-## FastGPT 运行方式
+## MCP Server 运行方式
 
-FastGPT 放在当前项目旁边：
-
-```text
-D:\pycmexercise\fastgpt-runtime
-```
-
-启动：
+标准输入输出模式，适合被 MCP 客户端直接启动：
 
 ```powershell
-cd D:\pycmexercise\fastgpt-runtime
-docker compose up -d
+.\.venv\Scripts\python.exe -m ticket_service.mcp_server --transport stdio
 ```
 
-访问：
+HTTP 模式，适合本地调试或 MCP Inspector 连接：
 
-- FastGPT Web：[http://localhost:3000](http://localhost:3000)
+```powershell
+.\.venv\Scripts\python.exe -m ticket_service.mcp_server --transport streamable-http --host 127.0.0.1 --port 8010 --path /mcp
+```
 
-当前 FastGPT 使用 Docker 运行，主要服务包括：
+MCP Server 暴露的工具：
 
-- `fastgpt-app`
-- `fastgpt-aiproxy`
-- `fastgpt-mongo`
-- `fastgpt-redis`
-- `fastgpt-pg`
-- `fastgpt-minio`
-- `fastgpt-plugin`
-- sandbox / MCP 相关辅助服务
+- `agent_respond`
+- `knowledge_search`
+- `ticket_create`
+
+MCP Server 暴露的资源和 Prompt：
+
+- `iot://knowledge/summary`
+- `iot_support_prompt`
 
 ## 端口规划
 
 | 端口 | 服务 |
 |---:|---|
-| 3000 | FastGPT Web |
-| 3003 | FastGPT MCP Server |
-| 3006 | FastGPT Agent Sandbox Proxy |
 | 8000 | 本项目 FastAPI 工单服务 |
-| 9000 / 9001 | FastGPT MinIO |
+| 8010 | 本项目 MCP Streamable HTTP 服务 |
 
 ## Docker 磁盘说明
+
+本项目主链路不依赖 Docker。Docker 只在你想本地启动 PostgreSQL、Redis 或其他基础服务时使用。
 
 你已经把 Docker Desktop 的 Disk image location 尽量迁到 E 盘。`docker info` 中的 `DockerRootDir=/var/lib/docker` 是 Docker Linux 虚拟机内部路径，不等于宿主机 C 盘路径。
 

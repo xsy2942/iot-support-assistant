@@ -13,9 +13,9 @@ PostgreSQL 在本项目中负责：
 
 pgvector 的定位不同：
 
-- 如果使用 FastGPT，知识库向量通常由 FastGPT 自己的 PostgreSQL / pgvector 容器管理。
 - 本项目的工单表不需要 pgvector。
-- 如果后续想自研知识库检索，可以在本项目 PostgreSQL 中启用 pgvector，新增 `knowledge_chunks` 向量表。
+- 当前知识库检索使用本地 TF-IDF + 关键词融合。
+- 如果后续想升级向量检索，可以在本项目 PostgreSQL 中启用 pgvector，新增 `knowledge_chunks` 向量表。
 
 ## 建库示例
 
@@ -136,5 +136,5 @@ Redis 更适合保存短期会话状态，例如：
 ```text
 Redis 保存短期会话上下文
 PostgreSQL 保存长期工单和反馈记录
-FastGPT / pgvector 保存知识库向量检索数据
+pgvector 可选保存知识库向量检索数据
 ```

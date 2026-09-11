@@ -9,7 +9,7 @@ from .models import AgentRequest, TicketCreate
 
 
 class McpToolServer:
-    """Minimal MCP-style JSON-RPC tool endpoint for this local support agent."""
+    """Compatibility JSON-RPC endpoint. The official MCP SDK server lives in mcp_server.py."""
 
     def __init__(self, agent: SupportAgent, ticket_store: Any, memory_store: AgentMemoryStore) -> None:
         self.agent = agent
