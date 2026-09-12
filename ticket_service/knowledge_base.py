@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import csv
 import re
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from pathlib import Path
 
 from sklearn.feature_extraction.text import TfidfVectorizer
@@ -40,7 +40,14 @@ class KnowledgeBase:
         self.vectorizer = TfidfVectorizer(analyzer="char_wb", ngram_range=(2, 4), min_df=1)
         self.matrix = self.vectorizer.fit_transform(self.corpus) if self.corpus else None
 
-    def search(self, query: str, top_k: int = 3) -> list[KnowledgeHit]:
+    def search(
+        self,
+        query: str,
+        top_k: int = 3,
+        device_model: str | None = None,
+        error_code: str | None = None,
+        issue_type: str | None = None,
+    ) -> list[KnowledgeHit]:
         if not self.rows or self.matrix is None:
             return []
         vector_scores = cosine_similarity(self.vectorizer.transform([query]), self.matrix).ravel()
@@ -49,17 +56,27 @@ class KnowledgeBase:
             round(float(vector_scores[index]) * 0.72 + keyword_scores[index] * 0.28, 4)
             for index in range(len(self.rows))
         ]
-        ranked_indices = sorted(range(len(self.rows)), key=lambda index: combined_scores[index], reverse=True)
-        parent_best: dict[str, int] = {}
-        for index in ranked_indices:
-            if combined_scores[index] <= 0:
+        candidate_indices = sorted(range(len(self.rows)), key=lambda index: combined_scores[index], reverse=True)[: max(top_k * 8, 24)]
+        candidates = [
+            self._rerank_hit(
+                self._to_hit(self.rows[index], combined_scores[index]),
+                device_model=device_model,
+                error_code=error_code,
+                issue_type=issue_type,
+            )
+            for index in candidate_indices
+            if combined_scores[index] > 0
+        ]
+        ranked_hits = sorted(candidates, key=lambda hit: hit.score, reverse=True)
+        parent_best: dict[str, KnowledgeHit] = {}
+        for hit in ranked_hits:
+            if hit.score <= 0:
                 continue
-            parent_id = self.rows[index]["parent_id"]
-            if parent_id not in parent_best:
-                parent_best[parent_id] = index
+            if hit.parent_id not in parent_best:
+                parent_best[hit.parent_id] = hit
             if len(parent_best) >= top_k:
                 break
-        return [self._to_hit(self.rows[index], combined_scores[index]) for index in parent_best.values()]
+        return list(parent_best.values())
 
     @staticmethod
     def _read_rows(path: Path) -> list[dict[str, str]]:
@@ -131,3 +148,19 @@ class KnowledgeBase:
             score=score,
             sibling_count=int(row.get("sibling_count", "1")),
         )
+
+    @staticmethod
+    def _rerank_hit(
+        hit: KnowledgeHit,
+        device_model: str | None = None,
+        error_code: str | None = None,
+        issue_type: str | None = None,
+    ) -> KnowledgeHit:
+        score = hit.score
+        if device_model:
+            score += 0.14 if hit.device_model.lower() == device_model.lower() else -0.08
+        if error_code and hit.error_code:
+            score += 0.16 if hit.error_code.lower() == error_code.lower() else -0.07
+        if issue_type:
+            score += 0.12 if hit.issue_type == issue_type else -0.06
+        return replace(hit, score=round(max(0.0, score), 4))

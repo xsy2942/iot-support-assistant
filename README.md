@@ -12,12 +12,13 @@ IoT 设备售后智能体与工单闭环系统。
 - 150 条生成问答评测集、40 条挑战评测集与本地 RAG / Agent 评测。
 - 120 条遥测样例与 80 条诊断评测脚本。
 - Python ReAct Agent 编排接口：Reason -> Action -> Observation -> Verify 动态执行链。
-- 本地混合检索：基于 `knowledge_chunks.csv` 做中文字符 n-gram 向量检索 + 设备型号/错误码关键词加权，并支持父子块聚合去重。
+- 本地混合检索：基于 `knowledge_chunks.csv` 做中文字符 n-gram 向量检索 + 关键词召回 + 设备型号/错误码/问题类型业务重排，并支持父子块聚合去重。
 - Agent 会话记忆：通过 `session_id` 合并多轮设备型号、错误码、网络状态等上下文字段，Redis 可选持久化短期记忆。
 - MCP Server：基于官方 `mcp` Python SDK 暴露 `agent_respond`、`knowledge_search`、`ticket_create` 工具，并提供知识库资源与 Prompt 模板。
 - SSE 流式输出：提供 `GET /agent/respond/stream`，前端可逐步接收路由、规划、检索和最终结果事件。
 - FastAPI 工单服务：创建工单、查看工单、更新状态、记录反馈、输出评测报告。
-- 中文前端 Dashboard：设备诊断、转人工工单、反馈和指标展示。
+- 中文客服工作台：支持客户原话、排障字段、设备遥测和图片附件入口，优先展示建议回复、参考依据、工单号和今日处理统计。
+- 图片能力边界：当前版本保存图片附件元数据并随工单流转，不做自动视觉识别；如需识别设备面板或错误截图，可继续接 OCR 或多模态模型。
 - 轻量多轮排障：用户描述不完整时先追问设备型号、错误码、在线状态、网络类型等关键信息。
 - DeepSeek、阿里云百炼、Tavily 接入检查脚本。
 

@@ -19,36 +19,43 @@ const sampleTelemetry = {
   customer_risk_signal: null
 };
 
-const sampleTroubleshooting = {
-  session_id: "demo-agent-session",
-  question: "设备连不上平台了，现场人员也说不清楚具体原因。",
-  issue_type: "设备离线",
-  device_model: null,
-  error_code: null,
-  online_status: null,
-  indicator_light: null,
-  network_type: null,
-  heartbeat_age_sec: null,
-  mqtt_connected: null,
-  last_upgrade_status: null,
-  tried_steps: [],
-  risk_signal: null
-};
+const sampleQuestion = "客户说设备连不上平台，截图里像是报 E104，现场是 GW-200，应该怎么处理？";
+const sampleTroubleshooting = "设备连不上平台了，现场人员只说指示灯不是常亮，客户也不清楚具体错误码。";
 
-const sampleQuestion = "GW-200 报 E104 且 MQTT 连接超时，平台显示心跳已经 15 分钟没有上报，应该怎么排查？";
+const sampleFields = {
+  question: {
+    deviceModel: "GW-200",
+    errorCode: "E104",
+    issueType: "MQTT 连接超时",
+    onlineStatus: "离线",
+    networkType: "4G",
+    mqttConnected: "false"
+  },
+  troubleshooting: {
+    deviceModel: "",
+    errorCode: "",
+    issueType: "设备离线",
+    onlineStatus: "",
+    networkType: "",
+    mqttConnected: ""
+  }
+};
 
 const modeConfig = {
   question: {
     label: "客户原话",
-    placeholder: "粘贴客户原话，例如：GW-200 报 E104 且 MQTT 连接超时，平台显示心跳 15 分钟没有上报，应该怎么排查？"
+    inputLabel: "客户原话或现场描述",
+    placeholder: "粘贴客户原话，例如：设备连不上平台了，截图里像是报 E104，现场是 GW-200。"
   },
   troubleshooting: {
     label: "排障补充",
-    placeholder: "粘贴排障补充 JSON，例如设备型号、在线状态、指示灯、网络类型、错误码。"
+    inputLabel: "已知现象",
+    placeholder: "用于客户说不清楚时先补信息，例如：设备离线、指示灯闪烁、现场暂时不知道错误码。"
   },
   telemetry: {
     label: "设备遥测",
-    placeholder: "粘贴设备遥测 JSON，例如心跳、MQTT 状态、信号强度、电压、温度。"
+    inputLabel: "平台遥测 JSON",
+    placeholder: "粘贴设备平台上报的遥测 JSON，例如心跳、MQTT 状态、信号强度、电压、温度。"
   }
 };
 
@@ -126,21 +133,41 @@ const fieldLabels = {
 
 let currentMode = "question";
 let lastTicketPayload = null;
+let attachments = [];
 
 const input = document.querySelector("#agent-input");
+const inputLabel = document.querySelector("#agent-input-label");
 const output = document.querySelector("#agent-output");
 const routePill = document.querySelector("#agent-route-pill");
 const inputModePill = document.querySelector("#input-mode-pill");
 const createTicketButton = document.querySelector("#agent-create-ticket-btn");
 const ticketTable = document.querySelector("#ticket-table");
+const todayTicketCount = document.querySelector("#today-ticket-count");
 const openTicketCount = document.querySelector("#open-ticket-count");
 const p1TicketCount = document.querySelector("#p1-ticket-count");
 const handoffTicketCount = document.querySelector("#handoff-ticket-count");
 const feedbackRateValue = document.querySelector("#feedback-rate-value");
 const feedbackRate = document.querySelector("#feedback-rate");
+const todayStatTotal = document.querySelector("#today-stat-total");
+const todayStatOpen = document.querySelector("#today-stat-open");
+const todayStatReviewing = document.querySelector("#today-stat-reviewing");
+const todayStatResolved = document.querySelector("#today-stat-resolved");
+const todayStatP1 = document.querySelector("#today-stat-p1");
+const supportFields = document.querySelector("#text-support-fields");
+const attachmentInput = document.querySelector("#attachment-input");
+const attachmentList = document.querySelector("#attachment-list");
 const toast = document.querySelector("#toast");
 const statusDot = document.querySelector(".status-dot");
 const serviceStatus = document.querySelector("#service-status");
+
+const fieldInputs = {
+  deviceModel: document.querySelector("#device-model-field"),
+  errorCode: document.querySelector("#error-code-field"),
+  issueType: document.querySelector("#issue-type-field"),
+  onlineStatus: document.querySelector("#online-status-field"),
+  networkType: document.querySelector("#network-type-field"),
+  mqttConnected: document.querySelector("#mqtt-connected-field")
+};
 
 setInputMode("question");
 
@@ -150,22 +177,36 @@ document.querySelectorAll("[data-input-mode]").forEach((button) => {
 
 document.querySelector("#load-sample-btn").addEventListener("click", () => {
   fillSample(currentMode);
-  showToast(`已载入${modeConfig[currentMode].label}演示样本`);
+  showToast(`已填入${modeConfig[currentMode].label}示例`);
 });
 
 document.querySelector("#refresh-btn").addEventListener("click", () => {
   refreshAll();
 });
 
+attachmentInput.addEventListener("change", () => {
+  attachments.forEach((item) => {
+    if (item.previewUrl) URL.revokeObjectURL(item.previewUrl);
+  });
+  attachments = Array.from(attachmentInput.files || []).map((file) => ({
+    filename: file.name,
+    content_type: file.type || "image/*",
+    size_bytes: file.size,
+    note: "客户上传的设备现场图片或错误截图",
+    previewUrl: URL.createObjectURL(file)
+  }));
+  renderAttachmentList();
+});
+
 document.querySelector("#agent-run-btn").addEventListener("click", async () => {
   try {
     resetTicketAction();
-    if (currentMode === "question") {
-      renderAgent(await postJson("/agent/respond", readQuestionPayload()));
+    if (currentMode === "telemetry") {
+      renderDiagnosis(await postJson("/diagnostics/analyze", readTelemetryPayload()));
     } else if (currentMode === "troubleshooting") {
-      renderTroubleshooting(await postJson("/troubleshooting/next", readJsonPayload(input)));
+      renderTroubleshooting(await postJson("/troubleshooting/next", readTroubleshootingPayload()));
     } else {
-      renderDiagnosis(await postJson("/diagnostics/analyze", readJsonPayload(input)));
+      renderAgent(await postJson("/agent/respond", readQuestionPayload()));
     }
   } catch (error) {
     showToast(error.message);
@@ -201,34 +242,94 @@ function setInputMode(mode) {
     button.classList.toggle("active", button.dataset.inputMode === mode);
   });
   inputModePill.textContent = modeConfig[mode].label;
+  inputLabel.textContent = modeConfig[mode].inputLabel;
   input.placeholder = modeConfig[mode].placeholder;
+  supportFields.classList.toggle("hidden", mode === "telemetry");
+  document.querySelector("#agent-stream-btn").disabled = mode !== "question";
   fillSample(mode);
   resetResult();
 }
 
 function fillSample(mode) {
+  clearAttachments();
   if (mode === "question") {
     input.value = sampleQuestion;
+    setFieldValues(sampleFields.question);
   } else if (mode === "troubleshooting") {
-    input.value = JSON.stringify(sampleTroubleshooting, null, 2);
+    input.value = sampleTroubleshooting;
+    setFieldValues(sampleFields.troubleshooting);
   } else {
     input.value = JSON.stringify(sampleTelemetry, null, 2);
+    setFieldValues({});
   }
+}
+
+function setFieldValues(values) {
+  fieldInputs.deviceModel.value = values.deviceModel || "";
+  fieldInputs.errorCode.value = values.errorCode || "";
+  fieldInputs.issueType.value = values.issueType || "";
+  fieldInputs.onlineStatus.value = values.onlineStatus || "";
+  fieldInputs.networkType.value = values.networkType || "";
+  fieldInputs.mqttConnected.value = values.mqttConnected || "";
+}
+
+function clearAttachments() {
+  attachments.forEach((item) => {
+    if (item.previewUrl) URL.revokeObjectURL(item.previewUrl);
+  });
+  attachments = [];
+  attachmentInput.value = "";
+  renderAttachmentList();
 }
 
 function readQuestionPayload() {
   const raw = input.value.trim();
-  if (!raw) {
-    throw new Error("请先输入客户问题");
-  }
-  if (raw.startsWith("{")) {
-    return readJsonPayload(input);
+  if (!raw && !attachments.length) {
+    throw new Error("请先输入客户问题，或上传一张现场图片");
   }
   return {
-    question: raw,
+    question: raw || "客户上传了设备现场图片，但没有补充文字描述。请先判断需要追问哪些关键信息。",
     session_id: "demo-agent-session",
-    top_k: 3
+    top_k: 3,
+    attachments: toApiAttachments(),
+    ...collectStructuredFields()
   };
+}
+
+function readTroubleshootingPayload() {
+  const raw = input.value.trim();
+  if (!raw) {
+    throw new Error("请先输入已知故障现象");
+  }
+  return {
+    session_id: "demo-troubleshooting-session",
+    question: raw,
+    ...collectStructuredFields()
+  };
+}
+
+function readTelemetryPayload() {
+  return readJsonPayload(input);
+}
+
+function collectStructuredFields() {
+  const fields = {};
+  if (fieldInputs.deviceModel.value.trim()) fields.device_model = fieldInputs.deviceModel.value.trim();
+  if (fieldInputs.errorCode.value.trim()) fields.error_code = fieldInputs.errorCode.value.trim();
+  if (fieldInputs.issueType.value) fields.issue_type = fieldInputs.issueType.value;
+  if (fieldInputs.onlineStatus.value) fields.online_status = fieldInputs.onlineStatus.value;
+  if (fieldInputs.networkType.value) fields.network_type = fieldInputs.networkType.value;
+  if (fieldInputs.mqttConnected.value !== "") fields.mqtt_connected = fieldInputs.mqttConnected.value === "true";
+  return fields;
+}
+
+function toApiAttachments() {
+  return attachments.map(({ filename, content_type, size_bytes, note }) => ({
+    filename,
+    content_type,
+    size_bytes,
+    note
+  }));
 }
 
 function readJsonPayload(target) {
@@ -278,9 +379,25 @@ async function refreshReport() {
 async function refreshTickets() {
   const response = await fetch("/tickets");
   const tickets = await response.json();
-  openTicketCount.textContent = tickets.filter((ticket) => ticket.status === "open").length;
-  p1TicketCount.textContent = tickets.filter((ticket) => ticket.priority === "P1").length;
-  handoffTicketCount.textContent = tickets.filter((ticket) => isHandoffTicket(ticket)).length;
+  const todayTickets = tickets.filter((ticket) => isToday(ticket.created_at));
+  const allOpen = tickets.filter((ticket) => ticket.status === "open");
+  const allP1 = tickets.filter((ticket) => ticket.priority === "P1");
+  const allHandoff = tickets.filter(isHandoffTicket);
+  const todayOpen = todayTickets.filter((ticket) => ticket.status === "open");
+  const todayReviewing = todayTickets.filter((ticket) => ticket.status === "reviewing");
+  const todayResolved = todayTickets.filter((ticket) => ["resolved", "closed"].includes(ticket.status));
+  const todayP1 = todayTickets.filter((ticket) => ticket.priority === "P1");
+
+  todayTicketCount.textContent = todayTickets.length;
+  openTicketCount.textContent = allOpen.length;
+  p1TicketCount.textContent = allP1.length;
+  handoffTicketCount.textContent = allHandoff.length;
+  todayStatTotal.textContent = todayTickets.length;
+  todayStatOpen.textContent = todayOpen.length;
+  todayStatReviewing.textContent = todayReviewing.length;
+  todayStatResolved.textContent = todayResolved.length;
+  todayStatP1.textContent = todayP1.length;
+
   if (!tickets.length) {
     ticketTable.innerHTML = `<tr><td colspan="5" class="empty-cell">暂无工单</td></tr>`;
     return;
@@ -293,7 +410,7 @@ async function refreshTickets() {
           <td>${escapeHtml(label(categoryNames, ticket.category))}</td>
           <td>${escapeHtml(ticket.priority)}</td>
           <td>${escapeHtml(label(statusNames, ticket.status))}</td>
-          <td>${escapeHtml(translateSummary(ticket.summary))}</td>
+          <td>${escapeHtml(translateSummary(ticket.summary))}${renderTicketAttachmentBadge(ticket)}</td>
         </tr>
       `
     )
@@ -306,11 +423,11 @@ function renderAgent(result) {
   setTicketAction(result.ticket_payload);
   output.className = "result-grid";
   output.innerHTML = `
-    ${renderDecisionSummary(result.route, result.status, result.confidence_score)}
     ${renderAnswer(result.answer, result.route)}
     ${renderFollowUpQuestions(result.follow_up_questions)}
     ${renderTicketPayload(result.ticket_payload)}
     ${renderAgentEvidence(result.evidence)}
+    ${renderDecisionSummary(result.route, result.status, result.confidence_score)}
     ${renderMemoryFacts(result.memory_facts)}
     ${renderTraceDetails(result.react_trace)}
   `;
@@ -320,19 +437,16 @@ function renderTroubleshooting(result) {
   routePill.textContent = `${label(routeNames, result.route)} / ${result.priority}`;
   routePill.classList.remove("muted");
   setTicketAction(result.ticket_payload);
+  const advice = result.follow_up_questions.length
+    ? `当前信息不足，建议先向客户确认 ${result.follow_up_questions.length} 个关键信息，再继续判断。`
+    : result.suggested_action;
   output.className = "result-grid";
   output.innerHTML = `
-    ${renderDecisionSummary(result.route, "排障引导", result.confidence_score)}
-    ${renderMissingFields(result.missing_fields)}
+    ${renderAnswer(advice, result.route)}
     ${renderFollowUpQuestions(result.follow_up_questions)}
-    <div class="finding">
-      <div class="finding-title">
-        <span>建议动作</span>
-        <span>${escapeHtml(result.priority)}</span>
-      </div>
-      <p>${escapeHtml(result.suggested_action)}</p>
-    </div>
+    ${renderMissingFields(result.missing_fields)}
     ${renderTicketPayload(result.ticket_payload)}
+    ${renderDecisionSummary(result.route, result.priority, result.confidence_score)}
   `;
 }
 
@@ -342,10 +456,23 @@ function renderDiagnosis(result) {
   setTicketAction(result.ticket_payload);
   output.className = "result-grid";
   output.innerHTML = `
-    ${renderDecisionSummary(result.route, result.category, result.confidence_score)}
+    ${renderAnswer(diagnosisAdvice(result), result.route)}
     ${result.findings.map(renderFinding).join("")}
     ${renderTicketPayload(result.ticket_payload)}
+    ${renderDecisionSummary(result.route, result.category, result.confidence_score)}
   `;
+}
+
+function diagnosisAdvice(result) {
+  if (!result.findings.length) {
+    return "设备遥测未触发明显故障规则，建议继续观察两个心跳周期。";
+  }
+  const first = result.findings[0];
+  const action = label(actionNames, first.action);
+  if (result.ticket_payload) {
+    return `遥测数据触发「${label(categoryNames, first.category)}」规则，优先级为 ${result.priority}。建议：${action}`;
+  }
+  return `遥测数据未达到转人工阈值。建议：${action}`;
 }
 
 function renderDecisionSummary(route, status, confidenceScore) {
@@ -442,8 +569,8 @@ function renderTraceDetails(trace) {
 }
 
 function renderAgentEvidence(evidence) {
-  if (!evidence.length) {
-    return `<div class="empty-state">没有可引用的知识库证据。</div>`;
+  if (!evidence || !evidence.length) {
+    return "";
   }
   return `
     <div class="evidence-list">
@@ -485,7 +612,7 @@ function renderMissingFields(fields) {
   }
   return `
     <div class="field-list">
-      <span>缺失字段</span>
+      <span>仍缺少</span>
       ${fields.map((field) => `<b>${escapeHtml(fieldLabels[field] ?? field)}</b>`).join("")}
     </div>
   `;
@@ -535,6 +662,7 @@ function renderTicketPayload(payload) {
   if (!payload) {
     return "";
   }
+  const attachmentText = payload.attachments && payload.attachments.length ? `附件：${payload.attachments.length} 张图片。` : "";
   return `
     <div class="finding major">
       <div class="finding-title">
@@ -542,13 +670,20 @@ function renderTicketPayload(payload) {
         <span>${escapeHtml(payload.priority)}</span>
       </div>
       <p>${escapeHtml(translateSummary(payload.summary))}</p>
-      <p>建议动作：${escapeHtml(label(actionNames, payload.suggested_action))}</p>
+      <p>${escapeHtml(attachmentText)}建议动作：${escapeHtml(label(actionNames, payload.suggested_action))}</p>
     </div>
   `;
 }
 
 function setTicketAction(payload) {
-  lastTicketPayload = payload || null;
+  if (payload) {
+    lastTicketPayload = {
+      ...payload,
+      attachments: payload.attachments && payload.attachments.length ? payload.attachments : toApiAttachments()
+    };
+  } else {
+    lastTicketPayload = null;
+  }
   createTicketButton.disabled = !lastTicketPayload;
 }
 
@@ -560,8 +695,41 @@ function resetResult() {
   routePill.textContent = "未运行";
   routePill.classList.add("muted");
   output.className = "empty-state";
-  output.textContent = "输入客户问题后，这里会优先展示可直接发给客户的结论；参考依据和 Agent 执行过程会放在下方。";
+  output.textContent = "生成后这里先显示可发给客户的建议回复；如果信息不足，会先列出需要追问的问题。";
   resetTicketAction();
+}
+
+function renderAttachmentList() {
+  if (!attachments.length) {
+    attachmentList.textContent = "未上传图片";
+    return;
+  }
+  attachmentList.innerHTML = attachments
+    .map(
+      (item) => `
+        <div class="attachment-chip">
+          <img src="${escapeHtml(item.previewUrl)}" alt="" />
+          <span>${escapeHtml(item.filename)}</span>
+          <b>${formatBytes(item.size_bytes)}</b>
+        </div>
+      `
+    )
+    .join("");
+}
+
+function renderTicketAttachmentBadge(ticket) {
+  const count = ticket.attachments ? ticket.attachments.length : 0;
+  if (!count) {
+    return "";
+  }
+  return `<span class="ticket-badge">含 ${count} 张图片</span>`;
+}
+
+function isToday(value) {
+  if (!value) {
+    return false;
+  }
+  return new Date(value).toDateString() === new Date().toDateString();
 }
 
 function isHandoffTicket(ticket) {
@@ -591,6 +759,19 @@ function label(dictionary, value) {
 
 function statusLabel(value) {
   return agentStatusNames[value] ?? categoryNames[value] ?? value;
+}
+
+function formatBytes(value) {
+  if (!Number.isFinite(value)) {
+    return "";
+  }
+  if (value < 1024) {
+    return `${value} B`;
+  }
+  if (value < 1024 * 1024) {
+    return `${(value / 1024).toFixed(1)} KB`;
+  }
+  return `${(value / 1024 / 1024).toFixed(1)} MB`;
 }
 
 function translateEvidence(value) {

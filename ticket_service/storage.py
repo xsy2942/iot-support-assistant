@@ -36,12 +36,14 @@ class SqliteTicketStore:
                     summary TEXT NOT NULL,
                     retrieved_sources TEXT NOT NULL,
                     suggested_action TEXT NOT NULL,
+                    attachments TEXT NOT NULL DEFAULT '[]',
                     status TEXT NOT NULL,
                     created_at TEXT NOT NULL,
                     updated_at TEXT NOT NULL
                 )
                 """
             )
+            self._ensure_sqlite_column(connection, "tickets", "attachments", "TEXT NOT NULL DEFAULT '[]'")
             connection.execute(
                 """
                 CREATE TABLE IF NOT EXISTS feedback (
@@ -69,10 +71,15 @@ class SqliteTicketStore:
         with self._connect() as connection:
             connection.execute(
                 """
-                INSERT INTO tickets VALUES (
+                INSERT INTO tickets (
+                    ticket_id, question, device_model, firmware_version, error_code,
+                    category, priority, summary, retrieved_sources, suggested_action,
+                    attachments, status, created_at, updated_at
+                )
+                VALUES (
                     :ticket_id, :question, :device_model, :firmware_version, :error_code,
                     :category, :priority, :summary, :retrieved_sources, :suggested_action,
-                    :status, :created_at, :updated_at
+                    :attachments, :status, :created_at, :updated_at
                 )
                 """,
                 self._ticket_to_row(ticket),
@@ -145,6 +152,7 @@ class SqliteTicketStore:
         data["priority"] = ticket.priority.value
         data["status"] = ticket.status.value
         data["retrieved_sources"] = json.dumps(ticket.retrieved_sources, ensure_ascii=False)
+        data["attachments"] = json.dumps(data.get("attachments", []), ensure_ascii=False)
         data["created_at"] = ticket.created_at.isoformat()
         data["updated_at"] = ticket.updated_at.isoformat()
         return data
@@ -153,9 +161,16 @@ class SqliteTicketStore:
     def _row_to_ticket(row: sqlite3.Row) -> Ticket:
         data = dict(row)
         data["retrieved_sources"] = json.loads(data["retrieved_sources"])
+        data["attachments"] = json.loads(data.get("attachments") or "[]")
         data["created_at"] = datetime.fromisoformat(data["created_at"])
         data["updated_at"] = datetime.fromisoformat(data["updated_at"])
         return Ticket(**data)
+
+    @staticmethod
+    def _ensure_sqlite_column(connection: sqlite3.Connection, table: str, column: str, definition: str) -> None:
+        columns = {row["name"] for row in connection.execute(f"PRAGMA table_info({table})").fetchall()}
+        if column not in columns:
+            connection.execute(f"ALTER TABLE {table} ADD COLUMN {column} {definition}")
 
 
 class PostgresTicketStore:
@@ -186,6 +201,7 @@ class PostgresTicketStore:
                     summary TEXT NOT NULL,
                     retrieved_sources JSONB NOT NULL DEFAULT '[]'::jsonb,
                     suggested_action TEXT NOT NULL,
+                    attachments JSONB NOT NULL DEFAULT '[]'::jsonb,
                     status TEXT NOT NULL,
                     created_at TIMESTAMPTZ NOT NULL,
                     updated_at TIMESTAMPTZ NOT NULL
@@ -206,6 +222,7 @@ class PostgresTicketStore:
                 )
                 """
             )
+            connection.execute("ALTER TABLE tickets ADD COLUMN IF NOT EXISTS attachments JSONB NOT NULL DEFAULT '[]'::jsonb")
             connection.execute("CREATE INDEX IF NOT EXISTS idx_tickets_status ON tickets(status)")
             connection.execute("CREATE INDEX IF NOT EXISTS idx_tickets_created_at ON tickets(created_at DESC)")
 
@@ -224,9 +241,9 @@ class PostgresTicketStore:
                 INSERT INTO tickets (
                     ticket_id, question, device_model, firmware_version, error_code,
                     category, priority, summary, retrieved_sources, suggested_action,
-                    status, created_at, updated_at
+                    attachments, status, created_at, updated_at
                 )
-                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s::jsonb, %s, %s, %s, %s)
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s::jsonb, %s, %s::jsonb, %s, %s, %s)
                 """,
                 (
                     ticket.ticket_id,
@@ -239,6 +256,7 @@ class PostgresTicketStore:
                     ticket.summary,
                     json.dumps(ticket.retrieved_sources, ensure_ascii=False),
                     ticket.suggested_action,
+                    json.dumps(ticket.model_dump().get("attachments", []), ensure_ascii=False),
                     ticket.status.value,
                     ticket.created_at,
                     ticket.updated_at,
@@ -315,6 +333,7 @@ class PostgresTicketStore:
     def _row_to_ticket(row: dict[str, Any]) -> Ticket:
         data = dict(row)
         data["retrieved_sources"] = _sources(data["retrieved_sources"])
+        data["attachments"] = _sources(data.get("attachments", []))
         return Ticket(**data)
 
 

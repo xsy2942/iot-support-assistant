@@ -47,7 +47,13 @@ class McpToolServer:
             self.memory_store.save_turn(request, response)
             return self._text_result(response.model_dump(mode="json"))
         if name == "knowledge.search":
-            hits = self.agent.knowledge_base.search(arguments["query"], top_k=arguments.get("top_k", 3))
+            hits = self.agent.knowledge_base.search(
+                arguments["query"],
+                top_k=arguments.get("top_k", 3),
+                device_model=arguments.get("device_model"),
+                error_code=arguments.get("error_code"),
+                issue_type=arguments.get("issue_type"),
+            )
             return self._text_result([hit.__dict__ for hit in hits])
         if name == "tickets.create":
             ticket = self.ticket_store.create_ticket(TicketCreate(**arguments))
@@ -81,6 +87,9 @@ class McpToolServer:
                     "properties": {
                         "query": {"type": "string"},
                         "top_k": {"type": "integer", "minimum": 1, "maximum": 8},
+                        "device_model": {"type": "string"},
+                        "error_code": {"type": "string"},
+                        "issue_type": {"type": "string"},
                     },
                     "required": ["query"],
                 },

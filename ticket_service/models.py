@@ -39,6 +39,13 @@ class AgentStatus(str, Enum):
     incomplete = "INCOMPLETE"
 
 
+class AttachmentInfo(BaseModel):
+    filename: str
+    content_type: str | None = None
+    size_bytes: int | None = Field(default=None, ge=0)
+    note: str | None = None
+
+
 class TicketCreate(BaseModel):
     question: str = Field(min_length=2)
     device_model: str | None = None
@@ -49,6 +56,7 @@ class TicketCreate(BaseModel):
     summary: str
     retrieved_sources: list[str] = Field(default_factory=list)
     suggested_action: str = "human review recommended"
+    attachments: list[AttachmentInfo] = Field(default_factory=list)
 
 
 class Ticket(TicketCreate):
@@ -172,6 +180,7 @@ class AgentRequest(BaseModel):
     last_upgrade_status: str | None = None
     tried_steps: list[str] = Field(default_factory=list)
     risk_signal: str | None = None
+    attachments: list[AttachmentInfo] = Field(default_factory=list)
     top_k: int = Field(default=3, ge=1, le=8)
     max_steps: int = Field(default=6, ge=2, le=10)
 

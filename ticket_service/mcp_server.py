@@ -96,8 +96,20 @@ def build_mcp_server(
         description="Search local IoT knowledge chunks with hybrid retrieval and parent-child evidence routing.",
         structured_output=True,
     )
-    def knowledge_search(query: str, top_k: int = 3) -> dict[str, Any]:
-        hits = support_agent.knowledge_base.search(query, top_k=top_k)
+    def knowledge_search(
+        query: str,
+        top_k: int = 3,
+        device_model: str | None = None,
+        error_code: str | None = None,
+        issue_type: str | None = None,
+    ) -> dict[str, Any]:
+        hits = support_agent.knowledge_base.search(
+            query,
+            top_k=top_k,
+            device_model=device_model,
+            error_code=error_code,
+            issue_type=issue_type,
+        )
         return {
             "query": query,
             "top_k": top_k,

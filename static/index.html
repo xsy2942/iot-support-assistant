@@ -19,7 +19,7 @@
         <nav class="nav-list" aria-label="Main navigation">
           <a class="nav-item active" href="#intake">客户接待</a>
           <a class="nav-item" href="#tickets">工单队列</a>
-          <a class="nav-item" href="#evaluation">评测说明</a>
+          <a class="nav-item" href="#stats">今日统计</a>
           <a class="nav-item" href="/docs">接口文档</a>
         </nav>
         <div class="sidebar-note">
@@ -33,34 +33,34 @@
           <div>
             <p class="eyebrow">IoT 售后工作台</p>
             <h1>客户问题接待与工单闭环</h1>
-            <p class="page-intro">客服粘贴客户原话，或切换为排障补充、设备遥测输入。系统输出处理结论、参考依据，并在高风险或低置信度时生成工单草稿。</p>
+            <p class="page-intro">客服粘贴客户原话、上传现场图片或补充设备状态，系统先判断信息是否足够，再生成建议回复、参考依据或转人工工单。</p>
           </div>
           <div class="topbar-actions">
-            <button class="ghost-button" id="refresh-btn" type="button">刷新工单</button>
-            <button class="primary-button" id="load-sample-btn" type="button">载入演示样本</button>
+            <button class="ghost-button" id="refresh-btn" type="button">刷新数据</button>
+            <button class="primary-button" id="load-sample-btn" type="button">填入示例</button>
           </div>
         </header>
 
         <section class="metric-grid" aria-label="Ticket status">
           <article class="metric">
+            <span class="metric-label">今日接待</span>
+            <strong id="today-ticket-count">-</strong>
+            <span class="metric-hint">今天新建的工单数量</span>
+          </article>
+          <article class="metric">
             <span class="metric-label">待处理工单</span>
             <strong id="open-ticket-count">-</strong>
-            <span class="metric-hint">open 状态，需要继续跟进</span>
+            <span class="metric-hint">仍需要客服或二线跟进</span>
           </article>
           <article class="metric">
             <span class="metric-label">P1 紧急</span>
             <strong id="p1-ticket-count">-</strong>
-            <span class="metric-hint">安全、投诉、设备离线优先</span>
+            <span class="metric-hint">安全、投诉、离线优先处理</span>
           </article>
           <article class="metric">
             <span class="metric-label">转人工工单</span>
             <strong id="handoff-ticket-count">-</strong>
-            <span class="metric-hint">Agent 判断不适合强答</span>
-          </article>
-          <article class="metric">
-            <span class="metric-label">有用反馈率</span>
-            <strong id="feedback-rate-value">-</strong>
-            <span class="metric-hint" id="feedback-rate">等待服务返回</span>
+            <span class="metric-hint">低置信度或高风险问题</span>
           </article>
         </section>
 
@@ -69,7 +69,7 @@
             <div class="panel-heading">
               <div>
                 <p class="eyebrow">客户接待</p>
-                <h2>统一输入</h2>
+                <h2>问题受理</h2>
               </div>
               <span class="pill" id="input-mode-pill">客户原话</span>
             </div>
@@ -78,7 +78,65 @@
               <button class="mode-tab" data-input-mode="troubleshooting" type="button">排障补充</button>
               <button class="mode-tab" data-input-mode="telemetry" type="button">设备遥测</button>
             </div>
+            <label class="field-label" for="agent-input" id="agent-input-label">客户原话或现场描述</label>
             <textarea id="agent-input" class="compact-textarea" spellcheck="false"></textarea>
+            <div id="text-support-fields" class="support-fields">
+              <div class="field-grid">
+                <label>
+                  <span>设备型号</span>
+                  <input id="device-model-field" type="text" placeholder="如 GW-200" />
+                </label>
+                <label>
+                  <span>错误码</span>
+                  <input id="error-code-field" type="text" placeholder="如 E104" />
+                </label>
+                <label>
+                  <span>问题类型</span>
+                  <select id="issue-type-field">
+                    <option value="">暂不确定</option>
+                    <option value="设备离线">设备离线</option>
+                    <option value="MQTT 连接超时">MQTT 连接超时</option>
+                    <option value="固件升级失败">固件升级失败</option>
+                    <option value="传感器采样异常">传感器采样异常</option>
+                  </select>
+                </label>
+                <label>
+                  <span>在线状态</span>
+                  <select id="online-status-field">
+                    <option value="">未知</option>
+                    <option value="在线">在线</option>
+                    <option value="离线">离线</option>
+                    <option value="间歇离线">间歇离线</option>
+                  </select>
+                </label>
+                <label>
+                  <span>网络类型</span>
+                  <select id="network-type-field">
+                    <option value="">未知</option>
+                    <option value="4G">4G</option>
+                    <option value="Wi-Fi">Wi-Fi</option>
+                    <option value="以太网">以太网</option>
+                    <option value="NB-IoT">NB-IoT</option>
+                  </select>
+                </label>
+                <label>
+                  <span>MQTT 状态</span>
+                  <select id="mqtt-connected-field">
+                    <option value="">未知</option>
+                    <option value="true">已连接</option>
+                    <option value="false">未连接</option>
+                  </select>
+                </label>
+              </div>
+              <div class="attachment-box">
+                <label class="upload-card" for="attachment-input">
+                  <span>上传设备照片或错误截图</span>
+                  <b>选择图片</b>
+                </label>
+                <input id="attachment-input" type="file" accept="image/*" multiple />
+                <div id="attachment-list" class="attachment-list">未上传图片</div>
+              </div>
+            </div>
             <div class="button-row">
               <button class="primary-button" id="agent-run-btn" type="button">生成处理结论</button>
               <button class="ghost-button" id="agent-stream-btn" type="button">流式查看</button>
@@ -90,12 +148,12 @@
             <div class="panel-heading">
               <div>
                 <p class="eyebrow">处理结论</p>
-                <h2>回答、追问或工单草稿</h2>
+                <h2>建议回复与依据</h2>
               </div>
               <span class="pill muted" id="agent-route-pill">未运行</span>
             </div>
             <div id="agent-output" class="empty-state">
-              输入客户问题后，这里会优先展示可直接发给客户的结论；参考依据和 Agent 执行过程会放在下方。
+              生成后这里先显示可发给客户的建议回复；如果信息不足，会先列出需要追问的问题。
             </div>
           </div>
         </section>
@@ -104,7 +162,7 @@
           <div class="panel-heading">
             <div>
               <p class="eyebrow">工单闭环</p>
-              <h2>工单队列</h2>
+              <h2>工单号与队列</h2>
             </div>
             <span class="pill">人工复核</span>
           </div>
@@ -128,29 +186,44 @@
           </div>
         </section>
 
-        <section class="panel evaluation-panel" id="evaluation">
+        <section class="panel stats-panel" id="stats">
           <div class="panel-heading">
             <div>
-              <p class="eyebrow">评测说明</p>
-              <h2>生成集 + 挑战集</h2>
+              <p class="eyebrow">今日统计</p>
+              <h2>服务处理概览</h2>
             </div>
-            <span class="pill">离线验证</span>
+            <span class="pill" id="feedback-rate">等待服务返回</span>
           </div>
-          <div class="eval-grid">
+          <div class="stats-grid">
             <div>
-              <span>问答评测</span>
-              <strong>190 条</strong>
-              <p>150 条生成集验证链路，40 条挑战集覆盖口语改写、信息缺失、未知错误码和转人工边界。</p>
+              <span>今日新建</span>
+              <strong id="today-stat-total">-</strong>
+              <p>今天进入工单闭环的问题数量。</p>
             </div>
             <div>
-              <span>路由准确率</span>
-              <strong>95.79%</strong>
-              <p>按直接回答、先追问、转人工三类判断，不把生成集 100% 当作真实泛化能力。</p>
+              <span>待处理</span>
+              <strong id="today-stat-open">-</strong>
+              <p>仍处于待处理状态，需要继续跟进。</p>
             </div>
             <div>
-              <span>严格证据匹配</span>
-              <strong>83.33%</strong>
-              <p>检查召回证据是否匹配预期设备型号或错误码，用来暴露相似设备误召回问题。</p>
+              <span>复核中</span>
+              <strong id="today-stat-reviewing">-</strong>
+              <p>已经进入人工或二线复核阶段。</p>
+            </div>
+            <div>
+              <span>已解决</span>
+              <strong id="today-stat-resolved">-</strong>
+              <p>当天已标记解决或关闭的工单。</p>
+            </div>
+            <div>
+              <span>P1 紧急</span>
+              <strong id="today-stat-p1">-</strong>
+              <p>安全、投诉、离线等优先处理问题。</p>
+            </div>
+            <div>
+              <span>有用反馈率</span>
+              <strong id="feedback-rate-value">-</strong>
+              <p>来自客服或用户反馈的回答可用比例。</p>
             </div>
           </div>
         </section>

@@ -28,7 +28,9 @@ body {
 }
 
 button,
-textarea {
+textarea,
+input,
+select {
   font: inherit;
 }
 
@@ -181,6 +183,11 @@ button {
   font-weight: 700;
 }
 
+button:disabled {
+  cursor: not-allowed;
+  opacity: 0.48;
+}
+
 .primary-button {
   background: var(--primary);
   color: white;
@@ -293,14 +300,147 @@ textarea {
 }
 
 .compact-textarea {
-  min-height: 250px;
+  min-height: 170px;
   font-family: "Segoe UI", "Microsoft YaHei", Arial, sans-serif;
   font-size: 15px;
 }
 
-textarea:focus {
+textarea:focus,
+input:focus,
+select:focus {
   outline: 3px solid rgba(8, 127, 115, 0.18);
   border-color: var(--primary);
+}
+
+input,
+select {
+  width: 100%;
+  min-height: 40px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #fbfdfc;
+  color: var(--text);
+  padding: 0 11px;
+}
+
+select {
+  cursor: pointer;
+}
+
+.field-label {
+  display: block;
+  margin: 0 0 8px;
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.support-fields {
+  display: grid;
+  gap: 12px;
+  margin: 12px 0 14px;
+}
+
+.support-fields.hidden {
+  display: none;
+}
+
+.field-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.field-grid label {
+  display: grid;
+  gap: 6px;
+}
+
+.field-grid span {
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.attachment-box {
+  display: grid;
+  grid-template-columns: minmax(0, 190px) minmax(0, 1fr);
+  gap: 10px;
+  align-items: stretch;
+}
+
+.upload-card {
+  display: grid;
+  gap: 6px;
+  place-items: center;
+  min-height: 78px;
+  border: 1px dashed #93c5fd;
+  border-radius: 8px;
+  background: #eff6ff;
+  color: #1e3a8a;
+  cursor: pointer;
+  text-align: center;
+}
+
+.upload-card span {
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.upload-card b {
+  border-radius: 999px;
+  background: white;
+  padding: 5px 10px;
+  font-size: 12px;
+}
+
+#attachment-input {
+  display: none;
+}
+
+.attachment-list {
+  display: grid;
+  align-content: center;
+  min-height: 78px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #fbfcff;
+  color: var(--muted);
+  padding: 10px;
+  font-size: 13px;
+}
+
+.attachment-chip {
+  display: grid;
+  grid-template-columns: 42px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 9px;
+  min-width: 0;
+}
+
+.attachment-chip + .attachment-chip {
+  margin-top: 8px;
+}
+
+.attachment-chip img {
+  width: 42px;
+  height: 42px;
+  border-radius: 8px;
+  object-fit: cover;
+  background: #e2e8f0;
+}
+
+.attachment-chip span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--text);
+  font-weight: 700;
+}
+
+.attachment-chip b {
+  color: var(--muted);
+  font-size: 12px;
 }
 
 .result-grid {
@@ -379,6 +519,7 @@ textarea:focus {
   color: #334155;
   font-size: 15px;
   line-height: 1.75;
+  white-space: pre-line;
 }
 
 .finding.critical {
@@ -546,39 +687,56 @@ table {
   min-width: 760px;
 }
 
-.evaluation-panel {
+.evaluation-panel,
+.stats-panel {
   margin-top: 18px;
 }
 
-.eval-grid {
+.eval-grid,
+.stats-grid {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 12px;
 }
 
-.eval-grid div {
+.eval-grid div,
+.stats-grid div {
   border: 1px solid var(--line);
   border-radius: 8px;
   background: #fbfcff;
   padding: 14px;
 }
 
-.eval-grid span {
+.eval-grid span,
+.stats-grid span {
   color: var(--muted);
   font-size: 13px;
 }
 
-.eval-grid strong {
+.eval-grid strong,
+.stats-grid strong {
   display: block;
   margin-top: 6px;
   font-size: 24px;
 }
 
-.eval-grid p {
+.eval-grid p,
+.stats-grid p {
   margin: 8px 0 0;
   color: var(--muted);
   font-size: 13px;
   line-height: 1.55;
+}
+
+.ticket-badge {
+  display: inline-block;
+  margin-left: 8px;
+  border-radius: 999px;
+  background: #eff6ff;
+  color: #1d4ed8;
+  padding: 3px 8px;
+  font-size: 12px;
+  font-weight: 800;
 }
 
 th,
@@ -630,7 +788,8 @@ th {
 
   .metric-grid,
   .workspace,
-  .eval-grid {
+  .eval-grid,
+  .stats-grid {
     grid-template-columns: 1fr;
   }
 
@@ -655,6 +814,11 @@ th {
   }
 
   .summary-strip {
+    grid-template-columns: 1fr;
+  }
+
+  .field-grid,
+  .attachment-box {
     grid-template-columns: 1fr;
   }
 

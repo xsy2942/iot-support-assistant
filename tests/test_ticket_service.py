@@ -186,7 +186,38 @@ def test_agent_answers_with_local_knowledge_evidence(tmp_path, monkeypatch):
     assert body["evidence"]
     assert body["react_trace"][0]["action"] == "memory.read"
     assert "knowledge.search" in {step["action"] for step in body["react_trace"]}
-    assert "引用来源" in body["answer"]
+    assert "参考来源" in body["answer"]
+
+
+def test_ticket_can_store_image_attachment_metadata(tmp_path, monkeypatch):
+    client = make_client(tmp_path, monkeypatch)
+
+    ticket_payload = {
+        "question": "客户上传设备面板照片，怀疑网关离线。",
+        "device_model": "GW-200",
+        "error_code": "E104",
+        "category": "设备离线",
+        "priority": "P1",
+        "summary": "客户上传现场图片，设备疑似离线，建议人工复核。",
+        "retrieved_sources": ["image_attachment"],
+        "suggested_action": "保留图片和现场日志，转人工复核。",
+        "attachments": [
+            {
+                "filename": "gateway-panel.jpg",
+                "content_type": "image/jpeg",
+                "size_bytes": 248120,
+                "note": "客户上传的设备现场图片或错误截图",
+            }
+        ],
+    }
+
+    created = client.post("/tickets/create", json=ticket_payload)
+    assert created.status_code == 200
+    assert created.json()["attachments"][0]["filename"] == "gateway-panel.jpg"
+
+    tickets = client.get("/tickets")
+    assert tickets.status_code == 200
+    assert tickets.json()[0]["attachments"][0]["content_type"] == "image/jpeg"
 
 
 def test_agent_escalates_high_risk_question(tmp_path, monkeypatch):

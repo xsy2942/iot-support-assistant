@@ -95,7 +95,13 @@ class ReActSupportAgent:
                 "route": state.troubleshooting.route.value,
             }
         if action == "knowledge.search":
-            state.evidence_hits = self.knowledge_base.search(request.question, top_k=request.top_k)
+            state.evidence_hits = self.knowledge_base.search(
+                request.question,
+                top_k=request.top_k,
+                device_model=request.device_model,
+                error_code=request.error_code,
+                issue_type=request.issue_type,
+            )
             return {
                 "hit_count": len(state.evidence_hits),
                 "top_score": state.evidence_hits[0].score if state.evidence_hits else 0,
@@ -140,13 +146,24 @@ class ReActSupportAgent:
     @staticmethod
     def _action_input(action: str, request: AgentRequest) -> dict[str, object]:
         if action == "knowledge.search":
-            return {"query": request.question, "top_k": request.top_k}
+            return {
+                "query": request.question,
+                "top_k": request.top_k,
+                "device_model": request.device_model or "",
+                "error_code": request.error_code or "",
+                "issue_type": request.issue_type or "",
+            }
         if action == "memory.read":
-            return {"session_id": request.session_id or ""}
+            return {"session_id": request.session_id or "", "attachment_count": len(request.attachments)}
         if action == "troubleshooting.guide":
             return {"question": request.question, "device_model": request.device_model or "", "error_code": request.error_code or ""}
         if action == "ticket.draft":
-            return {"question": request.question, "device_model": request.device_model or "", "error_code": request.error_code or ""}
+            return {
+                "question": request.question,
+                "device_model": request.device_model or "",
+                "error_code": request.error_code or "",
+                "attachment_count": len(request.attachments),
+            }
         return {}
 
     @staticmethod
@@ -165,7 +182,9 @@ class ReActSupportAgent:
     def _clarify_response(self, request: AgentRequest, state: ReActState) -> AgentResponse:
         assert state.troubleshooting is not None
         questions = state.troubleshooting.follow_up_questions
-        answer = "当前描述还不够完整，ReAct Agent 决定先追问：" + "；".join(question.question for question in questions)
+        answer = "当前信息还不完整，建议先向客户确认：" + "；".join(question.question for question in questions)
+        if request.attachments:
+            answer += "。客户图片已作为附件保留，可在人工复核时查看。"
         return AgentResponse(
             session_id=request.session_id,
             route=AgentRoute.clarify,
@@ -182,10 +201,11 @@ class ReActSupportAgent:
         primary = state.evidence_hits[0]
         related = "、".join(hit.chunk_id for hit in state.evidence_hits[: request.top_k])
         answer = (
-            f"ReAct Agent 检索到最相关证据《{primary.title}》。"
-            f"建议处理：{primary.content.strip().replace(chr(10), ' ')} "
-            f"引用来源：{related}。若现场情况与证据不一致，或涉及投诉/赔偿/安全风险，应转人工复核。"
+            f"建议按以下步骤处理：{primary.content.strip().replace(chr(10), ' ')} "
+            f"参考来源：{related}。如果现场情况与资料不一致，或涉及投诉、赔偿、安全风险，应转人工复核。"
         )
+        if request.attachments:
+            answer += " 客户图片已随本次问题保留，可作为后续复核凭证。"
         return AgentResponse(
             session_id=request.session_id,
             route=AgentRoute.rag_answer,
@@ -210,7 +230,7 @@ class ReActSupportAgent:
             session_id=request.session_id,
             route=AgentRoute.handoff,
             status=AgentStatus.partial if state.risk_signal else AgentStatus.unknown,
-            answer="ReAct Agent 判断该问题不适合直接强答，已生成转人工工单草稿。",
+            answer="该问题涉及高风险或证据不足，不建议直接强答，已生成转人工工单草稿。",
             confidence_score=0.86 if state.risk_signal else 0.35,
             plan=[],
             evidence=self._evidence(state.evidence_hits),
@@ -224,7 +244,7 @@ class ReActSupportAgent:
             session_id=request.session_id,
             route=AgentRoute.handoff,
             status=AgentStatus.unknown,
-            answer="ReAct Agent 达到最大步骤数后仍未获得足够证据，建议转人工复核。",
+            answer="本轮没有获得足够可靠证据，建议转人工复核。",
             confidence_score=0.3,
             plan=[],
             evidence=self._evidence(state.evidence_hits),
@@ -315,6 +335,7 @@ class ReActSupportAgent:
             ),
             retrieved_sources=sources,
             suggested_action=action,
+            attachments=request.attachments,
         )
 
     @staticmethod
