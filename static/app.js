@@ -20,7 +20,6 @@ const sampleTelemetry = {
 };
 
 const sampleQuestion = "客户说设备连不上平台，截图里像是报 E104，现场是 GW-200，应该怎么处理？";
-const sampleTroubleshooting = "设备连不上平台了，现场人员只说指示灯不是常亮，客户也不清楚具体错误码。";
 
 const sampleFields = {
   question: {
@@ -30,14 +29,6 @@ const sampleFields = {
     onlineStatus: "离线",
     networkType: "4G",
     mqttConnected: "false"
-  },
-  troubleshooting: {
-    deviceModel: "",
-    errorCode: "",
-    issueType: "设备离线",
-    onlineStatus: "",
-    networkType: "",
-    mqttConnected: ""
   },
   tickets: {
     deviceModel: "",
@@ -51,19 +42,13 @@ const sampleFields = {
 
 const modeConfig = {
   question: {
-    label: "客户描述",
+    label: "新问题",
     inputLabel: "客户原话或现场描述",
     placeholder: "粘贴客户原话，例如：设备连不上平台了，截图里像是报 E104，现场是 GW-200。",
     note: "最常用：客户怎么说就怎么粘贴，知道设备型号或错误码时顺手填下面字段。"
   },
-  troubleshooting: {
-    label: "补充字段",
-    inputLabel: "已知现象",
-    placeholder: "用于客户说不清楚时先补信息，例如：设备离线、指示灯闪烁、现场暂时不知道错误码。",
-    note: "用于信息不完整场景：系统会根据下面字段判断还要追问客户什么。"
-  },
   tickets: {
-    label: "待处理工单",
+    label: "继续工单",
     inputLabel: "客户新的补充",
     placeholder: "选择一个待处理工单后，输入客户今天/明天补充的新情况，例如：客户说重启后还是离线，现场又看到 E104。",
     note: "用于继续处理未解决问题：选择历史工单后，系统会带着原问题、工单号和已知字段继续生成回复。"
@@ -71,8 +56,8 @@ const modeConfig = {
 };
 
 const categoryNames = {
-  high_risk_or_low_confidence: "高风险或低置信度",
-  agent_handoff: "Agent 转人工",
+  high_risk_or_low_confidence: "风险问题",
+  agent_handoff: "需要人工跟进",
   device_offline: "设备离线",
   mqtt_timeout: "MQTT 连接超时",
   firmware_upgrade_failed: "固件升级失败",
@@ -91,12 +76,12 @@ const severityNames = {
 };
 
 const routeNames = {
-  direct_answer: "直接回答",
-  review: "建议复核",
-  handoff: "转人工",
-  clarify: "先追问",
-  rag_answer: "知识库回答",
-  diagnostic: "规则诊断"
+  direct_answer: "可直接回复",
+  review: "需要复核",
+  handoff: "需要跟进",
+  clarify: "需要补充信息",
+  rag_answer: "可直接回复",
+  diagnostic: "设备状态建议"
 };
 
 const agentStatusNames = {
@@ -212,6 +197,11 @@ document.querySelector("#load-ticket-btn").addEventListener("click", () => {
   loadSelectedTicket(openTicketSelect.value);
 });
 
+openTicketSelect.addEventListener("change", () => {
+  const ticket = cachedTickets.find((item) => item.ticket_id === openTicketSelect.value);
+  renderTicketPreview(ticket);
+});
+
 document.querySelector("#telemetry-run-btn").addEventListener("click", async () => {
   try {
     resetTicketAction();
@@ -254,13 +244,25 @@ ticketTable.addEventListener("click", (event) => {
   document.querySelector("#intake").scrollIntoView({ behavior: "smooth", block: "start" });
 });
 
+ticketTable.addEventListener("change", async (event) => {
+  const select = event.target.closest("[data-ticket-status]");
+  if (!select) {
+    return;
+  }
+  try {
+    await postJson(`/tickets/${encodeURIComponent(select.dataset.ticketStatus)}/status`, { status: select.value });
+    showToast(`工单状态已更新为：${label(statusNames, select.value)}`);
+    await refreshAll();
+  } catch (error) {
+    showToast(error.message);
+  }
+});
+
 document.querySelector("#agent-run-btn").addEventListener("click", async () => {
   try {
     resetTicketAction();
     if (currentMode === "tickets") {
       renderAgent(await postJson("/agent/respond", readTicketContinuationPayload()));
-    } else if (currentMode === "troubleshooting") {
-      renderTroubleshooting(await postJson("/troubleshooting/next", readTroubleshootingPayload()));
     } else {
       renderAgent(await postJson("/agent/respond", readQuestionPayload()));
     }
@@ -271,10 +273,6 @@ document.querySelector("#agent-run-btn").addEventListener("click", async () => {
 
 document.querySelector("#agent-stream-btn").addEventListener("click", () => {
   try {
-    if (!["question", "tickets"].includes(currentMode)) {
-      showToast("流式查看当前用于客户描述或待处理工单");
-      return;
-    }
     runAgentStream(currentMode === "tickets" ? readTicketContinuationPayload() : readQuestionPayload());
   } catch (error) {
     showToast(error.message);
@@ -317,9 +315,6 @@ function fillSample(mode) {
   if (mode === "question") {
     input.value = sampleQuestion;
     setFieldValues(sampleFields.question);
-  } else if (mode === "troubleshooting") {
-    input.value = sampleTroubleshooting;
-    setFieldValues(sampleFields.troubleshooting);
   } else {
     input.value = "客户补充：";
     setFieldValues(sampleFields.tickets);
@@ -355,18 +350,6 @@ function readQuestionPayload() {
     session_id: "demo-agent-session",
     top_k: 3,
     attachments: toApiAttachments(),
-    ...collectStructuredFields()
-  };
-}
-
-function readTroubleshootingPayload() {
-  const raw = input.value.trim();
-  if (!raw) {
-    throw new Error("请先输入已知故障现象");
-  }
-  return {
-    session_id: "demo-troubleshooting-session",
-    question: raw,
     ...collectStructuredFields()
   };
 }
@@ -500,11 +483,14 @@ async function refreshTickets() {
     .map(
       (ticket) => `
         <tr>
-          <td>${escapeHtml(ticket.ticket_id)}</td>
-          <td>${escapeHtml(label(categoryNames, ticket.category))}</td>
-          <td>${escapeHtml(ticket.priority)}</td>
+          <td>
+            <strong class="ticket-id">${escapeHtml(ticket.ticket_id)}</strong>
+            <span class="ticket-meta-line">${escapeHtml(ticket.priority)} · ${escapeHtml(label(categoryNames, ticket.category))}</span>
+          </td>
+          <td>${escapeHtml(ticketQuestion(ticket))}${renderTicketAttachmentBadge(ticket)}</td>
+          <td>${escapeHtml(ticketSuggestion(ticket))}</td>
           <td>${escapeHtml(label(statusNames, ticket.status))}</td>
-          <td>${escapeHtml(translateSummary(ticket.summary))}${renderTicketAttachmentBadge(ticket)}</td>
+          <td>${escapeHtml(formatDateTime(ticket.updated_at))}</td>
           <td>${renderTicketAction(ticket)}</td>
         </tr>
       `
@@ -513,7 +499,7 @@ async function refreshTickets() {
 }
 
 function refreshOpenTicketSelect(tickets) {
-  const openTickets = (tickets || []).filter((ticket) => ticket.status === "open");
+  const openTickets = (tickets || []).filter((ticket) => ["open", "reviewing"].includes(ticket.status));
   if (!openTickets.length) {
     currentTicket = null;
     openTicketSelect.innerHTML = `<option value="">暂无待处理工单</option>`;
@@ -527,7 +513,7 @@ function refreshOpenTicketSelect(tickets) {
   openTicketSelect.innerHTML = openTickets
     .map(
       (ticket) =>
-        `<option value="${escapeHtml(ticket.ticket_id)}">${escapeHtml(ticket.ticket_id)} / ${escapeHtml(ticket.priority)} / ${escapeHtml(label(categoryNames, ticket.category))}</option>`
+        `<option value="${escapeHtml(ticket.ticket_id)}">${escapeHtml(ticket.ticket_id)} · ${escapeHtml(ticket.device_model || "型号未知")} · ${escapeHtml(label(categoryNames, ticket.category))}</option>`
     )
     .join("");
   if (selectedValue && openTickets.some((ticket) => ticket.ticket_id === selectedValue)) {
@@ -565,16 +551,42 @@ function renderTicketPreview(ticket) {
     return;
   }
   ticketPreview.innerHTML = `
-    <strong>${escapeHtml(ticket.ticket_id)} · ${escapeHtml(ticket.priority)} · ${escapeHtml(label(statusNames, ticket.status))}</strong>
-    <p>${escapeHtml(translateSummary(ticket.summary))}</p>
+    <div class="ticket-preview-heading">
+      <strong>${escapeHtml(ticket.ticket_id)}</strong>
+      <span>${escapeHtml(ticket.priority)} · ${escapeHtml(label(statusNames, ticket.status))}</span>
+    </div>
+    <div class="ticket-preview-tags">
+      <span>${escapeHtml(ticket.device_model || "型号未知")}</span>
+      <span>${escapeHtml(ticket.error_code || "无错误码")}</span>
+      <span>${escapeHtml(label(categoryNames, ticket.category))}</span>
+    </div>
+    <div class="ticket-preview-section">
+      <b>上次报错信息</b>
+      <p>${escapeHtml(ticketQuestion(ticket))}</p>
+    </div>
+    <div class="ticket-preview-section">
+      <b>上次处理建议</b>
+      <p>${escapeHtml(ticketSuggestion(ticket))}</p>
+    </div>
+    <div class="ticket-preview-footer">
+      <span>最近更新：${escapeHtml(formatDateTime(ticket.updated_at))}</span>
+      ${ticket.attachments && ticket.attachments.length ? `<span>附件 ${ticket.attachments.length} 张</span>` : ""}
+    </div>
   `;
 }
 
 function renderTicketAction(ticket) {
-  if (ticket.status !== "open") {
-    return `<span class="muted-text">已归档</span>`;
-  }
-  return `<button class="small-button" type="button" data-continue-ticket="${escapeHtml(ticket.ticket_id)}">继续处理</button>`;
+  const canContinue = ["open", "reviewing"].includes(ticket.status);
+  return `
+    <div class="ticket-actions">
+      ${canContinue ? `<button class="small-button" type="button" data-continue-ticket="${escapeHtml(ticket.ticket_id)}">继续处理</button>` : ""}
+      <select class="status-select" data-ticket-status="${escapeHtml(ticket.ticket_id)}" aria-label="更新工单状态">
+        ${Object.entries(statusNames)
+          .map(([value, text]) => `<option value="${value}" ${ticket.status === value ? "selected" : ""}>${text}</option>`)
+          .join("")}
+      </select>
+    </div>
+  `;
 }
 
 function renderAgent(result) {
@@ -892,6 +904,43 @@ function renderTicketAttachmentBadge(ticket) {
     return "";
   }
   return `<span class="ticket-badge">含 ${count} 张图片</span>`;
+}
+
+function ticketSuggestion(ticket) {
+  const suggestion = label(actionNames, ticket.suggested_action || "");
+  if (/高风险或证据不足/.test(suggestion)) {
+    return "请先补充现场故障描述、设备状态和操作日志；如确认存在安全风险，立即升级给二线工程师。";
+  }
+  if (/建议人工复核/.test(suggestion)) {
+    return suggestion.replace("建议人工复核：", "请继续核对：");
+  }
+  return suggestion || "暂无处理建议，请继续确认现场情况。";
+}
+
+function ticketQuestion(ticket) {
+  const question = String(ticket.question || "");
+  const telemetryMatch = question.match(/^Telemetry diagnosis for (\S+) (\S+)$/i);
+  if (telemetryMatch) {
+    return `${telemetryMatch[1]} 设备 ${telemetryMatch[2]} 状态异常，需要根据上报数据继续排查。`;
+  }
+  return question || "暂无客户问题描述。";
+}
+
+function formatDateTime(value) {
+  if (!value) {
+    return "时间未知";
+  }
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) {
+    return String(value);
+  }
+  return new Intl.DateTimeFormat("zh-CN", {
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false
+  }).format(date);
 }
 
 function isToday(value) {

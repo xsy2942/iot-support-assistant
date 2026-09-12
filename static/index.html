@@ -33,7 +33,7 @@
           <div>
             <p class="eyebrow">IoT 售后工作台</p>
             <h1>客户问题接待与工单闭环</h1>
-            <p class="page-intro">客服粘贴客户原话、上传现场图片或补充设备状态，系统先判断信息是否足够，再生成建议回复、参考依据或转人工工单。</p>
+            <p class="page-intro">客服粘贴客户原话、上传现场图片或补充设备状态，系统先判断信息是否足够，再生成建议回复与参考依据；需要继续跟进时创建工单。</p>
           </div>
           <div class="topbar-actions">
             <button class="ghost-button" id="refresh-btn" type="button">刷新数据</button>
@@ -43,7 +43,7 @@
 
         <section class="metric-grid" aria-label="Ticket status">
           <article class="metric">
-            <span class="metric-label">今日接待</span>
+            <span class="metric-label">今日工单</span>
             <strong id="today-ticket-count">-</strong>
             <span class="metric-hint">今天新建的工单数量</span>
           </article>
@@ -58,9 +58,9 @@
             <span class="metric-hint">安全、投诉、离线优先处理</span>
           </article>
           <article class="metric">
-            <span class="metric-label">转人工工单</span>
+            <span class="metric-label">需要跟进</span>
             <strong id="handoff-ticket-count">-</strong>
-            <span class="metric-hint">低置信度或高风险问题</span>
+            <span class="metric-hint">信息不全或风险问题</span>
           </article>
         </section>
 
@@ -73,18 +73,17 @@
               </div>
               <span class="pill" id="input-mode-pill">客户原话</span>
             </div>
-            <div class="mode-tabs" role="tablist" aria-label="Input modes">
-              <button class="mode-tab active" data-input-mode="question" type="button">客户描述</button>
-              <button class="mode-tab" data-input-mode="troubleshooting" type="button">补充字段</button>
-              <button class="mode-tab" data-input-mode="tickets" type="button">待处理工单</button>
+            <div class="mode-tabs" role="tablist" aria-label="问题处理方式">
+              <button class="mode-tab active" data-input-mode="question" type="button">新问题</button>
+              <button class="mode-tab" data-input-mode="tickets" type="button">继续工单</button>
             </div>
             <div class="mode-note" id="input-mode-note"></div>
             <div class="ticket-reopen hidden" id="ticket-reopen-panel">
-              <label class="field-label" for="open-ticket-select">选择要继续处理的工单</label>
+              <label class="field-label" for="open-ticket-select">选择待继续处理的工单</label>
               <div class="ticket-picker">
                 <select id="open-ticket-select"></select>
                 <button class="ghost-button" id="refresh-open-tickets-btn" type="button">刷新</button>
-                <button class="primary-button" id="load-ticket-btn" type="button">载入工单</button>
+                <button class="primary-button" id="load-ticket-btn" type="button">查看并继续</button>
               </div>
               <div class="ticket-preview" id="ticket-preview">请选择一个待处理工单。</div>
             </div>
@@ -186,11 +185,11 @@
             <table>
               <thead>
                 <tr>
-                  <th>工单号</th>
-                  <th>分类</th>
-                  <th>优先级</th>
+                  <th>工单</th>
+                  <th>客户问题</th>
+                  <th>上次处理建议</th>
                   <th>状态</th>
-                  <th>摘要</th>
+                  <th>更新时间</th>
                   <th>操作</th>
                 </tr>
               </thead>

@@ -49,6 +49,14 @@ def test_ticket_feedback_report_flow(tmp_path, monkeypatch):
     assert tickets.status_code == 200
     assert len(tickets.json()) == 1
 
+    updated = client.post(f"/tickets/{ticket_id}/status", json={"status": "reviewing"})
+    assert updated.status_code == 200
+    assert updated.json()["status"] == "reviewing"
+
+    reviewing = client.get("/tickets", params={"status": "reviewing"})
+    assert reviewing.status_code == 200
+    assert [ticket["ticket_id"] for ticket in reviewing.json()] == [ticket_id]
+
     feedback = client.post(
         "/feedback",
         json={
