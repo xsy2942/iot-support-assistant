@@ -17,7 +17,7 @@ IoT 设备售后智能体与工单闭环系统。
 - MCP Server：基于官方 `mcp` Python SDK 暴露 `agent_respond`、`knowledge_search`、`ticket_create` 工具，并提供知识库资源与 Prompt 模板。
 - SSE 流式输出：提供 `GET /agent/respond/stream`，前端可逐步接收路由、规划、检索和最终结果事件。
 - FastAPI 工单服务：创建工单、查看工单、更新状态、记录反馈、输出评测报告。
-- 中文客服工作台：支持客户原话、排障字段、设备遥测和图片附件入口，优先展示建议回复、参考依据、工单号和今日处理统计。
+- 中文客服工作台：支持客户原话、排障字段、待处理工单续办、折叠式设备状态诊断和图片附件入口，优先展示建议回复、参考依据、工单号和今日处理统计。
 - 图片能力边界：当前版本保存图片附件元数据并随工单流转，不做自动视觉识别；如需识别设备面板或错误截图，可继续接 OCR 或多模态模型。
 - 轻量多轮排障：用户描述不完整时先追问设备型号、错误码、在线状态、网络类型等关键信息。
 - DeepSeek、阿里云百炼、Tavily 接入检查脚本。
@@ -50,9 +50,9 @@ TICKET_DB_URL=postgresql://postgres:postgres@localhost:5432/iot_support_assistan
 
 ```text
 TROUBLESHOOTING_REDIS_URL=redis://localhost:6379/0
-TROUBLESHOOTING_SESSION_TTL_SECONDS=1800
+TROUBLESHOOTING_SESSION_TTL_SECONDS=172800
 AGENT_MEMORY_REDIS_URL=redis://localhost:6379/0
-AGENT_MEMORY_TTL_SECONDS=1800
+AGENT_MEMORY_TTL_SECONDS=172800
 ```
 
 连接检查：
@@ -137,7 +137,7 @@ Agent 记忆策略：
 
 - 请求携带 `session_id` 时，系统会合并历史上下文字段。
 - 默认使用进程内 memory，适合本地演示。
-- 配置 `AGENT_MEMORY_REDIS_URL` 后，使用 Redis 保存短期会话记忆和最近 20 轮对话摘要。
+- 配置 `AGENT_MEMORY_REDIS_URL` 后，使用 Redis 保存短期会话记忆和最近 20 轮对话摘要，默认保留 2 天，便于跨天继续处理同一个工单。
 - 可以通过 `GET /agent/memory/{session_id}` 查看上下文字段和历史轮次。
 - 可以通过 `DELETE /agent/memory/{session_id}` 清空会话。
 

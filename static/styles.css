@@ -456,6 +456,24 @@ select {
   background: #fee2e2;
 }
 
+.small-button {
+  min-height: 32px;
+  border: 1px solid #bfdbfe;
+  background: #eff6ff;
+  color: #1d4ed8;
+  padding: 0 10px;
+  font-size: 12px;
+}
+
+.small-button:hover {
+  background: #dbeafe;
+}
+
+.muted-text {
+  color: var(--muted);
+  font-size: 13px;
+}
+
 .result-grid {
   display: grid;
   gap: 12px;
@@ -491,6 +509,73 @@ select {
   padding: 9px 11px;
   font-size: 13px;
   line-height: 1.45;
+}
+
+.hidden {
+  display: none !important;
+}
+
+.ticket-reopen {
+  display: grid;
+  gap: 9px;
+  margin: 12px 0;
+  border: 1px solid #c7d2fe;
+  border-radius: 8px;
+  background: #f8fbff;
+  padding: 12px;
+}
+
+.ticket-picker {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  gap: 8px;
+  align-items: center;
+}
+
+.ticket-preview {
+  border-left: 4px solid var(--primary);
+  border-radius: 8px;
+  background: white;
+  padding: 10px 12px;
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1.55;
+}
+
+.ticket-preview strong {
+  display: block;
+  color: var(--text);
+  margin-bottom: 4px;
+}
+
+.ticket-preview p {
+  margin: 0;
+}
+
+.telemetry-drawer {
+  border: 1px dashed #bfdbfe;
+  border-radius: 8px;
+  background: #f8fbff;
+  padding: 11px 12px;
+}
+
+.telemetry-drawer summary {
+  cursor: pointer;
+  color: #1d4ed8;
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.telemetry-drawer p {
+  margin: 8px 0 10px;
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.telemetry-textarea {
+  min-height: 180px;
+  margin-bottom: 10px;
 }
 
 .summary-strip {
@@ -845,12 +930,18 @@ th {
   }
 
   .field-grid,
-  .attachment-box {
+  .attachment-box,
+  .ticket-picker {
     grid-template-columns: 1fr;
   }
 
   button {
     width: 100%;
+  }
+
+  .remove-attachment,
+  .small-button {
+    width: auto;
   }
 
   .topbar-actions,

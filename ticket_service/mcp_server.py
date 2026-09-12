@@ -26,7 +26,7 @@ def build_mcp_server(
     support_agent = agent or ReActSupportAgent()
     agent_memory = memory_store or AgentMemoryStore(
         redis_url=os.getenv("AGENT_MEMORY_REDIS_URL") or os.getenv("TROUBLESHOOTING_REDIS_URL") or None,
-        ttl_seconds=int(os.getenv("AGENT_MEMORY_TTL_SECONDS", "1800")),
+        ttl_seconds=int(os.getenv("AGENT_MEMORY_TTL_SECONDS", "172800")),
     )
     tickets = ticket_store or create_ticket_store(
         db_url=os.getenv("TICKET_DB_URL") or None,

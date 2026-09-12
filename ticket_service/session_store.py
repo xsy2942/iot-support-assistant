@@ -7,7 +7,7 @@ from .models import TroubleshootingRequest
 
 
 class TroubleshootingSessionStore:
-    def __init__(self, redis_url: str | None = None, ttl_seconds: int = 1800) -> None:
+    def __init__(self, redis_url: str | None = None, ttl_seconds: int = 172800) -> None:
         self.redis_url = redis_url
         self.ttl_seconds = ttl_seconds
         self._client = None

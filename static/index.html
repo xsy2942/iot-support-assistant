@@ -76,9 +76,18 @@
             <div class="mode-tabs" role="tablist" aria-label="Input modes">
               <button class="mode-tab active" data-input-mode="question" type="button">客户描述</button>
               <button class="mode-tab" data-input-mode="troubleshooting" type="button">补充字段</button>
-              <button class="mode-tab" data-input-mode="telemetry" type="button">平台遥测</button>
+              <button class="mode-tab" data-input-mode="tickets" type="button">待处理工单</button>
             </div>
             <div class="mode-note" id="input-mode-note"></div>
+            <div class="ticket-reopen hidden" id="ticket-reopen-panel">
+              <label class="field-label" for="open-ticket-select">选择要继续处理的工单</label>
+              <div class="ticket-picker">
+                <select id="open-ticket-select"></select>
+                <button class="ghost-button" id="refresh-open-tickets-btn" type="button">刷新</button>
+                <button class="primary-button" id="load-ticket-btn" type="button">载入工单</button>
+              </div>
+              <div class="ticket-preview" id="ticket-preview">请选择一个待处理工单。</div>
+            </div>
             <label class="field-label" for="agent-input" id="agent-input-label">客户原话或现场描述</label>
             <textarea id="agent-input" class="compact-textarea" spellcheck="false"></textarea>
             <div id="text-support-fields" class="support-fields">
@@ -137,6 +146,12 @@
                 <input id="attachment-input" type="file" accept="image/*" multiple />
                 <div id="attachment-list" class="attachment-list">未上传图片</div>
               </div>
+              <details class="telemetry-drawer">
+                <summary>有设备状态 JSON 时，展开粘贴做规则诊断</summary>
+                <p>这里用于工程侧复制心跳、MQTT、信号、电压、温度等状态数据；普通客服接待可以不用管。</p>
+                <textarea id="telemetry-input" class="telemetry-textarea" spellcheck="false"></textarea>
+                <button class="ghost-button" id="telemetry-run-btn" type="button">分析设备状态</button>
+              </details>
             </div>
             <div class="button-row">
               <button class="primary-button" id="agent-run-btn" type="button">生成处理结论</button>
@@ -176,11 +191,12 @@
                   <th>优先级</th>
                   <th>状态</th>
                   <th>摘要</th>
+                  <th>操作</th>
                 </tr>
               </thead>
               <tbody id="ticket-table">
                 <tr>
-                  <td colspan="5" class="empty-cell">暂无工单</td>
+                  <td colspan="6" class="empty-cell">暂无工单</td>
                 </tr>
               </tbody>
             </table>

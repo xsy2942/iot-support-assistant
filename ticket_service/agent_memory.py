@@ -23,7 +23,7 @@ FACT_FIELDS = (
 
 
 class AgentMemoryStore:
-    def __init__(self, redis_url: str | None = None, ttl_seconds: int = 1800, turn_limit: int = 20) -> None:
+    def __init__(self, redis_url: str | None = None, ttl_seconds: int = 172800, turn_limit: int = 20) -> None:
         self.redis_url = redis_url
         self.ttl_seconds = ttl_seconds
         self.turn_limit = turn_limit

@@ -38,6 +38,14 @@ const sampleFields = {
     onlineStatus: "",
     networkType: "",
     mqttConnected: ""
+  },
+  tickets: {
+    deviceModel: "",
+    errorCode: "",
+    issueType: "",
+    onlineStatus: "",
+    networkType: "",
+    mqttConnected: ""
   }
 };
 
@@ -54,11 +62,11 @@ const modeConfig = {
     placeholder: "用于客户说不清楚时先补信息，例如：设备离线、指示灯闪烁、现场暂时不知道错误码。",
     note: "用于信息不完整场景：系统会根据下面字段判断还要追问客户什么。"
   },
-  telemetry: {
-    label: "平台遥测",
-    inputLabel: "平台遥测 JSON",
-    placeholder: "粘贴设备平台上报的遥测 JSON，例如心跳、MQTT 状态、信号强度、电压、温度。",
-    note: "用于设备平台有原始数据时：系统按心跳、MQTT、信号、温度、电压等规则做诊断。"
+  tickets: {
+    label: "待处理工单",
+    inputLabel: "客户新的补充",
+    placeholder: "选择一个待处理工单后，输入客户今天/明天补充的新情况，例如：客户说重启后还是离线，现场又看到 E104。",
+    note: "用于继续处理未解决问题：选择历史工单后，系统会带着原问题、工单号和已知字段继续生成回复。"
   }
 };
 
@@ -137,6 +145,8 @@ const fieldLabels = {
 let currentMode = "question";
 let lastTicketPayload = null;
 let attachments = [];
+let currentTicket = null;
+let cachedTickets = [];
 
 const input = document.querySelector("#agent-input");
 const inputLabel = document.querySelector("#agent-input-label");
@@ -158,6 +168,10 @@ const todayStatReviewing = document.querySelector("#today-stat-reviewing");
 const todayStatResolved = document.querySelector("#today-stat-resolved");
 const todayStatP1 = document.querySelector("#today-stat-p1");
 const supportFields = document.querySelector("#text-support-fields");
+const ticketReopenPanel = document.querySelector("#ticket-reopen-panel");
+const openTicketSelect = document.querySelector("#open-ticket-select");
+const ticketPreview = document.querySelector("#ticket-preview");
+const telemetryInput = document.querySelector("#telemetry-input");
 const attachmentInput = document.querySelector("#attachment-input");
 const attachmentList = document.querySelector("#attachment-list");
 const toast = document.querySelector("#toast");
@@ -174,6 +188,7 @@ const fieldInputs = {
 };
 
 setInputMode("question");
+telemetryInput.value = JSON.stringify(sampleTelemetry, null, 2);
 
 document.querySelectorAll("[data-input-mode]").forEach((button) => {
   button.addEventListener("click", () => setInputMode(button.dataset.inputMode));
@@ -186,6 +201,24 @@ document.querySelector("#load-sample-btn").addEventListener("click", () => {
 
 document.querySelector("#refresh-btn").addEventListener("click", () => {
   refreshAll();
+});
+
+document.querySelector("#refresh-open-tickets-btn").addEventListener("click", async () => {
+  await refreshTickets();
+  showToast("已刷新待处理工单");
+});
+
+document.querySelector("#load-ticket-btn").addEventListener("click", () => {
+  loadSelectedTicket(openTicketSelect.value);
+});
+
+document.querySelector("#telemetry-run-btn").addEventListener("click", async () => {
+  try {
+    resetTicketAction();
+    renderDiagnosis(await postJson("/diagnostics/analyze", readTelemetryPayload()));
+  } catch (error) {
+    showToast(error.message);
+  }
 });
 
 attachmentInput.addEventListener("change", () => {
@@ -211,11 +244,21 @@ attachmentList.addEventListener("click", (event) => {
   removeAttachment(button.dataset.removeAttachment);
 });
 
+ticketTable.addEventListener("click", (event) => {
+  const button = event.target.closest("[data-continue-ticket]");
+  if (!button) {
+    return;
+  }
+  setInputMode("tickets");
+  loadSelectedTicket(button.dataset.continueTicket);
+  document.querySelector("#intake").scrollIntoView({ behavior: "smooth", block: "start" });
+});
+
 document.querySelector("#agent-run-btn").addEventListener("click", async () => {
   try {
     resetTicketAction();
-    if (currentMode === "telemetry") {
-      renderDiagnosis(await postJson("/diagnostics/analyze", readTelemetryPayload()));
+    if (currentMode === "tickets") {
+      renderAgent(await postJson("/agent/respond", readTicketContinuationPayload()));
     } else if (currentMode === "troubleshooting") {
       renderTroubleshooting(await postJson("/troubleshooting/next", readTroubleshootingPayload()));
     } else {
@@ -227,11 +270,15 @@ document.querySelector("#agent-run-btn").addEventListener("click", async () => {
 });
 
 document.querySelector("#agent-stream-btn").addEventListener("click", () => {
-  if (currentMode !== "question") {
-    showToast("流式查看当前只用于客户原话 Agent 问答");
-    return;
+  try {
+    if (!["question", "tickets"].includes(currentMode)) {
+      showToast("流式查看当前用于客户描述或待处理工单");
+      return;
+    }
+    runAgentStream(currentMode === "tickets" ? readTicketContinuationPayload() : readQuestionPayload());
+  } catch (error) {
+    showToast(error.message);
   }
-  runAgentStream(readQuestionPayload());
 });
 
 createTicketButton.addEventListener("click", async () => {
@@ -258,8 +305,9 @@ function setInputMode(mode) {
   inputModeNote.textContent = modeConfig[mode].note;
   inputLabel.textContent = modeConfig[mode].inputLabel;
   input.placeholder = modeConfig[mode].placeholder;
-  supportFields.classList.toggle("hidden", mode === "telemetry");
-  document.querySelector("#agent-stream-btn").disabled = mode !== "question";
+  supportFields.classList.remove("hidden");
+  ticketReopenPanel.classList.toggle("hidden", mode !== "tickets");
+  document.querySelector("#agent-stream-btn").disabled = !["question", "tickets"].includes(mode);
   fillSample(mode);
   resetResult();
 }
@@ -273,8 +321,9 @@ function fillSample(mode) {
     input.value = sampleTroubleshooting;
     setFieldValues(sampleFields.troubleshooting);
   } else {
-    input.value = JSON.stringify(sampleTelemetry, null, 2);
-    setFieldValues({});
+    input.value = "客户补充：";
+    setFieldValues(sampleFields.tickets);
+    refreshOpenTicketSelect(cachedTickets);
   }
 }
 
@@ -322,8 +371,37 @@ function readTroubleshootingPayload() {
   };
 }
 
+function readTicketContinuationPayload() {
+  if (!currentTicket) {
+    throw new Error("请先选择并载入一个待处理工单");
+  }
+  const raw = input.value.trim();
+  if (!raw || raw === "客户补充：") {
+    throw new Error("请填写客户本次补充内容");
+  }
+  const question = [
+    `继续处理工单 ${currentTicket.ticket_id}`,
+    `原问题：${currentTicket.question}`,
+    `当前摘要：${currentTicket.summary}`,
+    `客户补充：${raw}`
+  ].join("\n");
+  return {
+    question,
+    session_id: currentTicket.ticket_id,
+    top_k: 3,
+    device_model: fieldInputs.deviceModel.value.trim() || currentTicket.device_model || undefined,
+    firmware_version: currentTicket.firmware_version || undefined,
+    error_code: fieldInputs.errorCode.value.trim() || currentTicket.error_code || undefined,
+    issue_type: fieldInputs.issueType.value || currentTicket.category || undefined,
+    online_status: fieldInputs.onlineStatus.value || undefined,
+    network_type: fieldInputs.networkType.value || undefined,
+    mqtt_connected: fieldInputs.mqttConnected.value === "" ? undefined : fieldInputs.mqttConnected.value === "true",
+    attachments: [...(currentTicket.attachments || []), ...toApiAttachments()]
+  };
+}
+
 function readTelemetryPayload() {
-  return readJsonPayload(input);
+  return readJsonPayload(telemetryInput);
 }
 
 function collectStructuredFields() {
@@ -393,6 +471,7 @@ async function refreshReport() {
 async function refreshTickets() {
   const response = await fetch("/tickets");
   const tickets = await response.json();
+  cachedTickets = tickets;
   const todayTickets = tickets.filter((ticket) => isToday(ticket.created_at));
   const allOpen = tickets.filter((ticket) => ticket.status === "open");
   const allP1 = tickets.filter((ticket) => ticket.priority === "P1");
@@ -411,9 +490,10 @@ async function refreshTickets() {
   todayStatReviewing.textContent = todayReviewing.length;
   todayStatResolved.textContent = todayResolved.length;
   todayStatP1.textContent = todayP1.length;
+  refreshOpenTicketSelect(tickets);
 
   if (!tickets.length) {
-    ticketTable.innerHTML = `<tr><td colspan="5" class="empty-cell">暂无工单</td></tr>`;
+    ticketTable.innerHTML = `<tr><td colspan="6" class="empty-cell">暂无工单</td></tr>`;
     return;
   }
   ticketTable.innerHTML = tickets
@@ -425,10 +505,76 @@ async function refreshTickets() {
           <td>${escapeHtml(ticket.priority)}</td>
           <td>${escapeHtml(label(statusNames, ticket.status))}</td>
           <td>${escapeHtml(translateSummary(ticket.summary))}${renderTicketAttachmentBadge(ticket)}</td>
+          <td>${renderTicketAction(ticket)}</td>
         </tr>
       `
     )
     .join("");
+}
+
+function refreshOpenTicketSelect(tickets) {
+  const openTickets = (tickets || []).filter((ticket) => ticket.status === "open");
+  if (!openTickets.length) {
+    currentTicket = null;
+    openTicketSelect.innerHTML = `<option value="">暂无待处理工单</option>`;
+    ticketPreview.textContent = "暂无待处理工单。";
+    return;
+  }
+  if (currentTicket && !openTickets.some((ticket) => ticket.ticket_id === currentTicket.ticket_id)) {
+    currentTicket = null;
+  }
+  const selectedValue = currentTicket ? currentTicket.ticket_id : openTicketSelect.value;
+  openTicketSelect.innerHTML = openTickets
+    .map(
+      (ticket) =>
+        `<option value="${escapeHtml(ticket.ticket_id)}">${escapeHtml(ticket.ticket_id)} / ${escapeHtml(ticket.priority)} / ${escapeHtml(label(categoryNames, ticket.category))}</option>`
+    )
+    .join("");
+  if (selectedValue && openTickets.some((ticket) => ticket.ticket_id === selectedValue)) {
+    openTicketSelect.value = selectedValue;
+  }
+  if (!currentTicket) {
+    renderTicketPreview(openTickets.find((ticket) => ticket.ticket_id === openTicketSelect.value) || openTickets[0]);
+  }
+}
+
+function loadSelectedTicket(ticketId) {
+  const ticket = cachedTickets.find((item) => item.ticket_id === ticketId);
+  if (!ticket) {
+    showToast("没有找到这个待处理工单，请先刷新");
+    return;
+  }
+  currentTicket = ticket;
+  openTicketSelect.value = ticket.ticket_id;
+  renderTicketPreview(ticket);
+  input.value = "客户补充：";
+  setFieldValues({
+    deviceModel: ticket.device_model || "",
+    errorCode: ticket.error_code || "",
+    issueType: reverseCategoryName(ticket.category),
+    onlineStatus: "",
+    networkType: "",
+    mqttConnected: ""
+  });
+  showToast(`已载入工单：${ticket.ticket_id}`);
+}
+
+function renderTicketPreview(ticket) {
+  if (!ticket) {
+    ticketPreview.textContent = "请选择一个待处理工单。";
+    return;
+  }
+  ticketPreview.innerHTML = `
+    <strong>${escapeHtml(ticket.ticket_id)} · ${escapeHtml(ticket.priority)} · ${escapeHtml(label(statusNames, ticket.status))}</strong>
+    <p>${escapeHtml(translateSummary(ticket.summary))}</p>
+  `;
+}
+
+function renderTicketAction(ticket) {
+  if (ticket.status !== "open") {
+    return `<span class="muted-text">已归档</span>`;
+  }
+  return `<button class="small-button" type="button" data-continue-ticket="${escapeHtml(ticket.ticket_id)}">继续处理</button>`;
 }
 
 function renderAgent(result) {
@@ -478,14 +624,14 @@ function renderDiagnosis(result) {
 
 function diagnosisAdvice(result) {
   if (!result.findings.length) {
-    return "设备遥测未触发明显故障规则，建议继续观察两个心跳周期。";
+    return "设备状态数据未触发明显故障规则，建议继续观察两个心跳周期。";
   }
   const first = result.findings[0];
   const action = label(actionNames, first.action);
   if (result.ticket_payload) {
-    return `遥测数据触发「${label(categoryNames, first.category)}」规则，优先级为 ${result.priority}。建议：${action}`;
+    return `设备状态数据触发「${label(categoryNames, first.category)}」规则，优先级为 ${result.priority}。建议：${action}`;
   }
-  return `遥测数据未达到转人工阈值。建议：${action}`;
+  return `设备状态数据未达到转人工阈值。建议：${action}`;
 }
 
 function renderSourceSummary(route, status, confidenceScore) {
@@ -789,11 +935,17 @@ function answerSourceLabel(route) {
     rag_answer: "知识库检索",
     clarify: "信息补全判断",
     handoff: "转人工规则",
-    diagnostic: "平台遥测规则",
+    diagnostic: "设备状态规则",
     direct_answer: "规则判断",
     review: "人工复核规则"
   };
   return sourceNames[route] ?? "系统判断";
+}
+
+function reverseCategoryName(value) {
+  const normalized = categoryNames[value] ?? value;
+  const allowed = ["设备离线", "MQTT 连接超时", "固件升级失败", "传感器采样异常"];
+  return allowed.includes(normalized) ? normalized : "";
 }
 
 function formatBytes(value) {

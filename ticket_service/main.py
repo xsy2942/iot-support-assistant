@@ -41,7 +41,7 @@ DB_URL = os.getenv("TICKET_DB_URL")
 DB_PATH = os.getenv("TICKET_DB_PATH", "./data/generated/tickets.sqlite3")
 REDIS_URL = os.getenv("TROUBLESHOOTING_REDIS_URL")
 AGENT_MEMORY_REDIS_URL = os.getenv("AGENT_MEMORY_REDIS_URL", REDIS_URL or "")
-SESSION_TTL_SECONDS = int(os.getenv("TROUBLESHOOTING_SESSION_TTL_SECONDS", "1800"))
+SESSION_TTL_SECONDS = int(os.getenv("TROUBLESHOOTING_SESSION_TTL_SECONDS", "172800"))
 AGENT_MEMORY_TTL_SECONDS = int(os.getenv("AGENT_MEMORY_TTL_SECONDS", str(SESSION_TTL_SECONDS)))
 STATIC_DIR = ROOT / "static"
 store = create_ticket_store(db_url=DB_URL, db_path=DB_PATH)
