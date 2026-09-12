@@ -197,6 +197,28 @@ def test_agent_answers_with_local_knowledge_evidence(tmp_path, monkeypatch):
     assert "参考来源" in body["answer"]
 
 
+def test_agent_replaces_online_status_with_latest_input(tmp_path, monkeypatch):
+    client = make_client(tmp_path, monkeypatch)
+    common = {
+        "session_id": "status-change-test",
+        "question": "GW-200 报 E104 且 MQTT 连接超时，应该怎么排查？",
+        "device_model": "GW-200",
+        "error_code": "E104",
+        "issue_type": "MQTT 连接超时",
+        "mqtt_connected": False,
+    }
+
+    online = client.post("/agent/respond", json={**common, "online_status": "在线"})
+    offline = client.post("/agent/respond", json={**common, "online_status": "离线"})
+
+    assert online.status_code == 200
+    assert offline.status_code == 200
+    assert "设备当前仍在线" in online.json()["answer"]
+    assert "设备当前显示离线" in offline.json()["answer"]
+    assert online.json()["answer"] != offline.json()["answer"]
+    assert offline.json()["memory_facts"]["online_status"] == "离线"
+
+
 def test_ticket_can_store_image_attachment_metadata(tmp_path, monkeypatch):
     client = make_client(tmp_path, monkeypatch)
 

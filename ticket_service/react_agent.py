@@ -371,6 +371,11 @@ class ReActSupportAgent:
                 "保留设备日志和现场现象，若仍无法恢复则转人工复核。",
             ]
 
+        if request.online_status == "离线":
+            steps.insert(0, "设备当前显示离线，先检查供电、SIM 卡或网络状态和最近心跳，恢复基础连接。")
+        elif request.online_status == "在线":
+            steps.insert(0, "设备当前仍在线，先不要反复重启，重点核对平台连接、MQTT 状态和认证配置。")
+
         lines = [f"建议您按照以下步骤排查 {device} 的{issue_type}："]
         for index, step in enumerate(steps[:4], start=1):
             lines.append(f"{index}. {step}")

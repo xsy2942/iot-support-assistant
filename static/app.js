@@ -132,6 +132,7 @@ let lastTicketPayload = null;
 let attachments = [];
 let currentTicket = null;
 let cachedTickets = [];
+let resultIsCurrent = false;
 
 const input = document.querySelector("#agent-input");
 const inputLabel = document.querySelector("#agent-input-label");
@@ -211,6 +212,13 @@ document.querySelector("#telemetry-run-btn").addEventListener("click", async () 
   }
 });
 
+input.addEventListener("input", markResultStale);
+telemetryInput.addEventListener("input", markResultStale);
+Object.values(fieldInputs).forEach((field) => {
+  field.addEventListener("input", markResultStale);
+  field.addEventListener("change", markResultStale);
+});
+
 attachmentInput.addEventListener("change", () => {
   const incoming = Array.from(attachmentInput.files || []).map((file) => ({
     id: `${file.name}-${file.size}-${file.lastModified}`,
@@ -224,6 +232,7 @@ attachmentInput.addEventListener("change", () => {
   attachments = [...attachments, ...incoming.filter((item) => !existingIds.has(item.id))];
   attachmentInput.value = "";
   renderAttachmentList();
+  markResultStale();
 });
 
 attachmentList.addEventListener("click", (event) => {
@@ -271,12 +280,11 @@ document.querySelector("#agent-run-btn").addEventListener("click", async () => {
   }
 });
 
-document.querySelector("#agent-stream-btn").addEventListener("click", () => {
-  try {
-    runAgentStream(currentMode === "tickets" ? readTicketContinuationPayload() : readQuestionPayload());
-  } catch (error) {
-    showToast(error.message);
-  }
+document.querySelector("#reset-input-btn").addEventListener("click", () => {
+  input.value = "";
+  resetResult();
+  input.focus();
+  showToast(currentMode === "tickets" ? "请重新填写客户本次补充" : "请重新输入客户描述");
 });
 
 createTicketButton.addEventListener("click", async () => {
@@ -305,7 +313,6 @@ function setInputMode(mode) {
   input.placeholder = modeConfig[mode].placeholder;
   supportFields.classList.remove("hidden");
   ticketReopenPanel.classList.toggle("hidden", mode !== "tickets");
-  document.querySelector("#agent-stream-btn").disabled = !["question", "tickets"].includes(mode);
   fillSample(mode);
   resetResult();
 }
@@ -590,6 +597,7 @@ function renderTicketAction(ticket) {
 }
 
 function renderAgent(result) {
+  resultIsCurrent = true;
   routePill.textContent = `${label(routeNames, result.route)} / ${label(agentStatusNames, result.status)}`;
   routePill.classList.remove("muted");
   setTicketAction(result.ticket_payload);
@@ -605,6 +613,7 @@ function renderAgent(result) {
 }
 
 function renderTroubleshooting(result) {
+  resultIsCurrent = true;
   routePill.textContent = `${label(routeNames, result.route)} / ${result.priority}`;
   routePill.classList.remove("muted");
   setTicketAction(result.ticket_payload);
@@ -622,6 +631,7 @@ function renderTroubleshooting(result) {
 }
 
 function renderDiagnosis(result) {
+  resultIsCurrent = true;
   routePill.textContent = `${label(routeNames, result.route)} / ${result.priority}`;
   routePill.classList.remove("muted");
   setTicketAction(result.ticket_payload);
@@ -675,41 +685,6 @@ function renderAnswer(answer, route) {
       <p>${escapeHtml(answer)}</p>
     </div>
   `;
-}
-
-function runAgentStream(payload) {
-  const params = new URLSearchParams();
-  params.set("question", payload.question);
-  if (payload.session_id) params.set("session_id", payload.session_id);
-  if (payload.device_model) params.set("device_model", payload.device_model);
-  if (payload.error_code) params.set("error_code", payload.error_code);
-  if (payload.network_type) params.set("network_type", payload.network_type);
-  if (payload.top_k) params.set("top_k", payload.top_k);
-
-  routePill.textContent = "流式执行中";
-  routePill.classList.remove("muted");
-  output.className = "result-grid";
-  output.innerHTML = `<div class="agent-stream" id="agent-stream-log"></div>`;
-  const streamLog = document.querySelector("#agent-stream-log");
-  const source = new EventSource(`/agent/respond/stream?${params.toString()}`);
-
-  source.addEventListener("step", (event) => {
-    const data = JSON.parse(event.data);
-    streamLog.insertAdjacentHTML(
-      "beforeend",
-      `<div class="plan-step"><b>${escapeHtml(data.index)}. ${escapeHtml(label(actionNames, data.action))}</b><span>${escapeHtml(data.next_decision)}</span></div>`
-    );
-  });
-
-  source.addEventListener("result", (event) => {
-    source.close();
-    renderAgent(JSON.parse(event.data));
-  });
-
-  source.onerror = () => {
-    source.close();
-    showToast("流式接口连接中断");
-  };
 }
 
 function renderTraceDetails(trace) {
@@ -863,10 +838,23 @@ function resetTicketAction() {
 }
 
 function resetResult() {
+  resultIsCurrent = false;
   routePill.textContent = "未运行";
   routePill.classList.add("muted");
   output.className = "empty-state";
   output.textContent = "生成后这里先显示可发给客户的建议回复；如果信息不足，会先列出需要追问的问题。";
+  resetTicketAction();
+}
+
+function markResultStale() {
+  if (!resultIsCurrent) {
+    return;
+  }
+  resultIsCurrent = false;
+  routePill.textContent = "输入已修改";
+  routePill.classList.add("muted");
+  output.className = "empty-state";
+  output.textContent = "客户描述或设备状态已经改变，请重新生成处理结论。";
   resetTicketAction();
 }
 
@@ -896,6 +884,7 @@ function removeAttachment(id) {
   }
   attachments = attachments.filter((item) => item.id !== id);
   renderAttachmentList();
+  markResultStale();
 }
 
 function renderTicketAttachmentBadge(ticket) {
