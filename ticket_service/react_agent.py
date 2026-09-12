@@ -200,10 +200,7 @@ class ReActSupportAgent:
     def _answer_response(self, request: AgentRequest, state: ReActState) -> AgentResponse:
         primary = state.evidence_hits[0]
         related = "、".join(hit.chunk_id for hit in state.evidence_hits[: request.top_k])
-        answer = (
-            f"建议按以下步骤处理：{primary.content.strip().replace(chr(10), ' ')} "
-            f"参考来源：{related}。如果现场情况与资料不一致，或涉及投诉、赔偿、安全风险，应转人工复核。"
-        )
+        answer = self._customer_reply(request, primary, related)
         if request.attachments:
             answer += " 客户图片已随本次问题保留，可作为后续复核凭证。"
         return AgentResponse(
@@ -360,3 +357,72 @@ class ReActSupportAgent:
             )
             for hit in hits
         ]
+
+    @staticmethod
+    def _customer_reply(request: AgentRequest, primary: KnowledgeHit, related: str) -> str:
+        device = request.device_model or primary.device_model or "该设备"
+        error_code = request.error_code or primary.error_code
+        issue_type = request.issue_type or primary.issue_type or "当前问题"
+        steps = ReActSupportAgent._extract_steps(primary.content)
+        if not steps:
+            steps = [
+                "确认设备型号、固件版本、错误码和最近一次故障时间。",
+                "检查供电、网络状态、平台在线状态和最近心跳时间。",
+                "保留设备日志和现场现象，若仍无法恢复则转人工复核。",
+            ]
+
+        lines = [f"建议您按照以下步骤排查 {device} 的{issue_type}："]
+        for index, step in enumerate(steps[:4], start=1):
+            lines.append(f"{index}. {step}")
+        if error_code:
+            lines.append(f"{len(lines)}. 同步核对平台日志中是否持续出现错误码 {error_code}。")
+        lines.append(f"参考来源：{related}。")
+        lines.append("如果现场情况与资料不一致，或涉及投诉、赔偿、安全风险，请转人工复核。")
+        return "\n".join(lines)
+
+    @staticmethod
+    def _extract_steps(content: str) -> list[str]:
+        text = content.strip().replace("\n", " ")
+        if "MQTT" in text or "Broker" in text:
+            return [
+                "核对 Broker 域名、端口和 TLS 证书是否与平台配置一致。",
+                "检查设备三元组、认证信息和防火墙策略是否被修改。",
+                "查看设备日志中的错误码记录和最近心跳时间。",
+                "处理后观察两个心跳周期，确认数据是否恢复。",
+            ]
+        if "设备离线" in text or "心跳" in text:
+            return [
+                "确认设备供电、网线或 SIM 卡网络是否正常。",
+                "检查平台最近心跳时间，判断是持续离线还是间歇离线。",
+                "核对 MQTT Broker 地址和防火墙放行策略。",
+                "重启设备后继续观察两个心跳周期。",
+            ]
+        if "固件" in text or "升级" in text:
+            return [
+                "确认设备型号、当前固件版本和目标固件版本是否匹配。",
+                "检查升级包校验值、网络稳定性和剩余存储空间。",
+                "导出升级日志，避免连续反复下发升级任务。",
+                "升级失败仍未恢复时转人工复核。",
+            ]
+        if "传感器" in text or "采样" in text:
+            return [
+                "检查传感器接线、探头安装位置和采样周期配置。",
+                "核对校准参数、阈值模板和现场环境变化。",
+                "对比历史正常数据，确认异常是否持续出现。",
+                "异常持续时保留采样日志并转人工复核。",
+            ]
+        marker_candidates = ("标准步骤：", "解决方案：", "建议先")
+        selected = text
+        for marker in marker_candidates:
+            if marker in text:
+                selected = text.split(marker, 1)[1]
+                break
+        selected = selected.split("建议动作：", 1)[0]
+        selected = selected.split("若 10 分钟", 1)[0]
+        selected = selected.split("处理后", 1)[0]
+        parts = [
+            part.strip(" ，。；;")
+            for part in selected.replace("并", "、").replace("和", "、").split("、")
+            if part.strip(" ，。；;")
+        ]
+        return [part if part.endswith("。") else f"{part}。" for part in parts if len(part) >= 2]

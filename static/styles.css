@@ -412,7 +412,7 @@ select {
 
 .attachment-chip {
   display: grid;
-  grid-template-columns: 42px minmax(0, 1fr) auto;
+  grid-template-columns: 42px minmax(0, 1fr) auto auto;
   align-items: center;
   gap: 9px;
   min-width: 0;
@@ -443,6 +443,19 @@ select {
   font-size: 12px;
 }
 
+.remove-attachment {
+  min-height: 30px;
+  border: 1px solid #fecaca;
+  background: #fff7f7;
+  color: #b42318;
+  padding: 0 9px;
+  font-size: 12px;
+}
+
+.remove-attachment:hover {
+  background: #fee2e2;
+}
+
 .result-grid {
   display: grid;
   gap: 12px;
@@ -452,7 +465,7 @@ select {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 8px;
-  margin-bottom: 12px;
+  margin-bottom: 8px;
 }
 
 .mode-tab {
@@ -468,10 +481,23 @@ select {
   color: #1d4ed8;
 }
 
+.mode-note {
+  min-height: 36px;
+  margin-bottom: 12px;
+  border: 1px solid #dbeafe;
+  border-radius: 8px;
+  background: #f8fbff;
+  color: #475569;
+  padding: 9px 11px;
+  font-size: 13px;
+  line-height: 1.45;
+}
+
 .summary-strip {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
   gap: 10px;
+  order: 10;
 }
 
 .summary-item {
@@ -598,6 +624,7 @@ select {
   border-radius: 8px;
   padding: 12px;
   background: #fbfcff;
+  order: 20;
 }
 
 .trace-details summary {

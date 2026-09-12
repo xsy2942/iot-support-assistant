@@ -74,10 +74,11 @@
               <span class="pill" id="input-mode-pill">客户原话</span>
             </div>
             <div class="mode-tabs" role="tablist" aria-label="Input modes">
-              <button class="mode-tab active" data-input-mode="question" type="button">客户原话</button>
-              <button class="mode-tab" data-input-mode="troubleshooting" type="button">排障补充</button>
-              <button class="mode-tab" data-input-mode="telemetry" type="button">设备遥测</button>
+              <button class="mode-tab active" data-input-mode="question" type="button">客户描述</button>
+              <button class="mode-tab" data-input-mode="troubleshooting" type="button">补充字段</button>
+              <button class="mode-tab" data-input-mode="telemetry" type="button">平台遥测</button>
             </div>
+            <div class="mode-note" id="input-mode-note"></div>
             <label class="field-label" for="agent-input" id="agent-input-label">客户原话或现场描述</label>
             <textarea id="agent-input" class="compact-textarea" spellcheck="false"></textarea>
             <div id="text-support-fields" class="support-fields">
@@ -131,7 +132,7 @@
               <div class="attachment-box">
                 <label class="upload-card" for="attachment-input">
                   <span>上传设备照片或错误截图</span>
-                  <b>选择图片</b>
+                  <b>添加图片</b>
                 </label>
                 <input id="attachment-input" type="file" accept="image/*" multiple />
                 <div id="attachment-list" class="attachment-list">未上传图片</div>

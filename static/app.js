@@ -43,19 +43,22 @@ const sampleFields = {
 
 const modeConfig = {
   question: {
-    label: "客户原话",
+    label: "客户描述",
     inputLabel: "客户原话或现场描述",
-    placeholder: "粘贴客户原话，例如：设备连不上平台了，截图里像是报 E104，现场是 GW-200。"
+    placeholder: "粘贴客户原话，例如：设备连不上平台了，截图里像是报 E104，现场是 GW-200。",
+    note: "最常用：客户怎么说就怎么粘贴，知道设备型号或错误码时顺手填下面字段。"
   },
   troubleshooting: {
-    label: "排障补充",
+    label: "补充字段",
     inputLabel: "已知现象",
-    placeholder: "用于客户说不清楚时先补信息，例如：设备离线、指示灯闪烁、现场暂时不知道错误码。"
+    placeholder: "用于客户说不清楚时先补信息，例如：设备离线、指示灯闪烁、现场暂时不知道错误码。",
+    note: "用于信息不完整场景：系统会根据下面字段判断还要追问客户什么。"
   },
   telemetry: {
-    label: "设备遥测",
+    label: "平台遥测",
     inputLabel: "平台遥测 JSON",
-    placeholder: "粘贴设备平台上报的遥测 JSON，例如心跳、MQTT 状态、信号强度、电压、温度。"
+    placeholder: "粘贴设备平台上报的遥测 JSON，例如心跳、MQTT 状态、信号强度、电压、温度。",
+    note: "用于设备平台有原始数据时：系统按心跳、MQTT、信号、温度、电压等规则做诊断。"
   }
 };
 
@@ -137,6 +140,7 @@ let attachments = [];
 
 const input = document.querySelector("#agent-input");
 const inputLabel = document.querySelector("#agent-input-label");
+const inputModeNote = document.querySelector("#input-mode-note");
 const output = document.querySelector("#agent-output");
 const routePill = document.querySelector("#agent-route-pill");
 const inputModePill = document.querySelector("#input-mode-pill");
@@ -185,17 +189,26 @@ document.querySelector("#refresh-btn").addEventListener("click", () => {
 });
 
 attachmentInput.addEventListener("change", () => {
-  attachments.forEach((item) => {
-    if (item.previewUrl) URL.revokeObjectURL(item.previewUrl);
-  });
-  attachments = Array.from(attachmentInput.files || []).map((file) => ({
+  const incoming = Array.from(attachmentInput.files || []).map((file) => ({
+    id: `${file.name}-${file.size}-${file.lastModified}`,
     filename: file.name,
     content_type: file.type || "image/*",
     size_bytes: file.size,
     note: "客户上传的设备现场图片或错误截图",
     previewUrl: URL.createObjectURL(file)
   }));
+  const existingIds = new Set(attachments.map((item) => item.id));
+  attachments = [...attachments, ...incoming.filter((item) => !existingIds.has(item.id))];
+  attachmentInput.value = "";
   renderAttachmentList();
+});
+
+attachmentList.addEventListener("click", (event) => {
+  const button = event.target.closest("[data-remove-attachment]");
+  if (!button) {
+    return;
+  }
+  removeAttachment(button.dataset.removeAttachment);
 });
 
 document.querySelector("#agent-run-btn").addEventListener("click", async () => {
@@ -242,6 +255,7 @@ function setInputMode(mode) {
     button.classList.toggle("active", button.dataset.inputMode === mode);
   });
   inputModePill.textContent = modeConfig[mode].label;
+  inputModeNote.textContent = modeConfig[mode].note;
   inputLabel.textContent = modeConfig[mode].inputLabel;
   input.placeholder = modeConfig[mode].placeholder;
   supportFields.classList.toggle("hidden", mode === "telemetry");
@@ -427,8 +441,7 @@ function renderAgent(result) {
     ${renderFollowUpQuestions(result.follow_up_questions)}
     ${renderTicketPayload(result.ticket_payload)}
     ${renderAgentEvidence(result.evidence)}
-    ${renderDecisionSummary(result.route, result.status, result.confidence_score)}
-    ${renderMemoryFacts(result.memory_facts)}
+    ${renderSourceSummary(result.route, result.status, result.confidence_score)}
     ${renderTraceDetails(result.react_trace)}
   `;
 }
@@ -446,7 +459,7 @@ function renderTroubleshooting(result) {
     ${renderFollowUpQuestions(result.follow_up_questions)}
     ${renderMissingFields(result.missing_fields)}
     ${renderTicketPayload(result.ticket_payload)}
-    ${renderDecisionSummary(result.route, result.priority, result.confidence_score)}
+    ${renderSourceSummary(result.route, result.priority, result.confidence_score)}
   `;
 }
 
@@ -459,7 +472,7 @@ function renderDiagnosis(result) {
     ${renderAnswer(diagnosisAdvice(result), result.route)}
     ${result.findings.map(renderFinding).join("")}
     ${renderTicketPayload(result.ticket_payload)}
-    ${renderDecisionSummary(result.route, result.category, result.confidence_score)}
+    ${renderSourceSummary(result.route, result.category, result.confidence_score)}
   `;
 }
 
@@ -475,19 +488,19 @@ function diagnosisAdvice(result) {
   return `遥测数据未达到转人工阈值。建议：${action}`;
 }
 
-function renderDecisionSummary(route, status, confidenceScore) {
+function renderSourceSummary(route, status, confidenceScore) {
   return `
     <div class="summary-strip">
       <div class="summary-item">
-        <span>处理路由</span>
+        <span>答案来源</span>
+        <strong>${escapeHtml(answerSourceLabel(route))}</strong>
+      </div>
+      <div class="summary-item">
+        <span>处理方式</span>
         <strong>${escapeHtml(label(routeNames, route))}</strong>
       </div>
       <div class="summary-item">
-        <span>当前状态</span>
-        <strong>${escapeHtml(statusLabel(status))}</strong>
-      </div>
-      <div class="summary-item">
-        <span>置信度</span>
+        <span>可信度</span>
         <strong>${Math.round(confidenceScore * 100)}%</strong>
       </div>
     </div>
@@ -701,7 +714,7 @@ function resetResult() {
 
 function renderAttachmentList() {
   if (!attachments.length) {
-    attachmentList.textContent = "未上传图片";
+    attachmentList.textContent = "未上传图片；当前版本会把图片作为工单附件留存。";
     return;
   }
   attachmentList.innerHTML = attachments
@@ -711,10 +724,20 @@ function renderAttachmentList() {
           <img src="${escapeHtml(item.previewUrl)}" alt="" />
           <span>${escapeHtml(item.filename)}</span>
           <b>${formatBytes(item.size_bytes)}</b>
+          <button class="remove-attachment" type="button" data-remove-attachment="${escapeHtml(item.id)}">删除</button>
         </div>
       `
     )
     .join("");
+}
+
+function removeAttachment(id) {
+  const removed = attachments.find((item) => item.id === id);
+  if (removed && removed.previewUrl) {
+    URL.revokeObjectURL(removed.previewUrl);
+  }
+  attachments = attachments.filter((item) => item.id !== id);
+  renderAttachmentList();
 }
 
 function renderTicketAttachmentBadge(ticket) {
@@ -759,6 +782,18 @@ function label(dictionary, value) {
 
 function statusLabel(value) {
   return agentStatusNames[value] ?? categoryNames[value] ?? value;
+}
+
+function answerSourceLabel(route) {
+  const sourceNames = {
+    rag_answer: "知识库检索",
+    clarify: "信息补全判断",
+    handoff: "转人工规则",
+    diagnostic: "平台遥测规则",
+    direct_answer: "规则判断",
+    review: "人工复核规则"
+  };
+  return sourceNames[route] ?? "系统判断";
 }
 
 function formatBytes(value) {
