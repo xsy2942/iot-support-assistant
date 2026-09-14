@@ -8,9 +8,9 @@ from typing import Any
 from dotenv import load_dotenv
 from mcp.server.mcpserver import MCPServer
 
+from .agent_factory import create_support_agent
 from .agent_memory import AgentMemoryStore
 from .models import AgentRequest, TicketCreate
-from .react_agent import ReActSupportAgent
 from .storage import create_ticket_store
 
 
@@ -19,11 +19,11 @@ load_dotenv(ROOT / ".env")
 
 
 def build_mcp_server(
-    agent: ReActSupportAgent | None = None,
+    agent: Any | None = None,
     memory_store: AgentMemoryStore | None = None,
     ticket_store: Any | None = None,
 ) -> MCPServer:
-    support_agent = agent or ReActSupportAgent()
+    support_agent = agent or create_support_agent()
     agent_memory = memory_store or AgentMemoryStore(
         redis_url=os.getenv("AGENT_MEMORY_REDIS_URL") or os.getenv("TROUBLESHOOTING_REDIS_URL") or None,
         ttl_seconds=int(os.getenv("AGENT_MEMORY_TTL_SECONDS", "172800")),
@@ -42,7 +42,7 @@ def build_mcp_server(
             "Clarify missing device facts, search local knowledge chunks, and create tickets only when human review is needed."
         ),
         version="0.3.0",
-        dependencies=["mcp>=2.2.0", "fastapi", "scikit-learn", "redis", "psycopg"],
+        dependencies=["mcp>=2.2.0", "langgraph>=1.0.0", "openai", "fastapi", "scikit-learn", "redis", "psycopg"],
     )
 
     @server.tool(

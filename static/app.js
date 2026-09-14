@@ -99,6 +99,7 @@ const statusNames = {
 };
 
 const actionNames = {
+  "llm.plan": "LLM 规划下一步",
   "memory.read": "读取会话记忆",
   "troubleshooting.guide": "检查缺失信息",
   "knowledge.search": "检索知识库",

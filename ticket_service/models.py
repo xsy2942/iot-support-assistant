@@ -223,3 +223,8 @@ class AgentResponse(BaseModel):
     follow_up_questions: list[TroubleshootingQuestion] = Field(default_factory=list)
     memory_facts: dict[str, str] = Field(default_factory=dict)
     ticket_payload: TicketCreate | None = None
+    runtime: str = "deterministic-react"
+    model_provider: str | None = None
+    model_name: str | None = None
+    execution_id: str | None = None
+    fallback_reason: str | None = None

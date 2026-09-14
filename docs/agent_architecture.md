@@ -1,6 +1,6 @@
 # Python Agent 主链路说明
 
-这个项目的主链路是一个 Python 实现的 ReAct-style Agent 服务。它的目标不是像 n8n 一样固定跑完所有节点，而是根据每轮 Observation 动态决定下一步调用哪个工具：先读会话记忆，再判断是否追问、检索知识库、生成回答或转人工工单。
+这个项目的主链路是 LangGraph 实现的 ReAct Agent 服务。它不是像 n8n 一样固定跑完所有节点，而是由 DeepSeek 或百炼根据每轮 Observation 返回真实 `tool_calls`，动态决定下一步是读取记忆、检查信息、检索知识库、生成工单还是提交最终结论。
 
 ## 为什么叫 Agent
 
@@ -14,12 +14,12 @@
 
 ```text
 用户问题
-  -> Reason
-  -> Action: memory.read / troubleshooting.guide / knowledge.search / ticket.draft / final.answer
+  -> LLM Planner
+  -> Tool Call: read_session_memory / inspect_support_context / search_iot_knowledge / draft_support_ticket
   -> Observation
-  -> Reason
+  -> LLM Planner
   -> ...
-  -> Verify
+  -> finalize_support_response / Verify
 ```
 
 也就是说，系统不是只做“检索 + 回答”，而是会根据不同情况选择不同动作：
@@ -33,21 +33,19 @@
 
 ### ReAct Executor
 
-位置：`ticket_service/react_agent.py`
+位置：`ticket_service/langgraph_agent.py`
 
-作用：每一轮根据已有 Observation 选择下一步 Action，而不是固定跑完一套流程。比如“设备连不上了”会先读 memory，再调用排障树发现缺少字段，最后进入追问；“GW-200 报 E104 且 MQTT 超时”会读 memory 后直接检索知识库并生成带引用回答；出现“冒烟、赔偿、投诉、数据丢失”等词会优先生成转人工工单草稿。
+作用：用 `StateGraph` 编排 `planner -> tools -> planner` 循环。Planner 调用真实 LLM，Tool Executor 执行模型选择的 Python 工具，并以 `role=tool` 将观察结果送回模型。比如“设备连不上了”可先检查缺失字段再追问；“GW-200 报 E104 且 MQTT 超时”会检索知识库再提交带引用回答；出现“冒烟、赔偿、投诉、数据丢失”等词时，程序校验器要求先生成工单再转人工。
 
-当前工具动作：
+提供给模型的工具：
 
-- `memory.read`
-- `troubleshooting.guide`
-- `knowledge.search`
-- `ticket.draft`
-- `final.clarify`
-- `final.answer`
-- `final.handoff`
+- `read_session_memory`
+- `inspect_support_context`
+- `search_iot_knowledge`
+- `draft_support_ticket`
+- `finalize_support_response`
 
-返回结果里会包含 `react_trace`，用于展示每一轮的 reasoning summary、action、observation 和 next decision。
+返回结果里的 `react_trace` 只记录可审计的规划摘要、工具名、输入和 Observation，不记录或伪造模型隐藏思维过程。`ticket_service/react_agent.py` 中原有确定性执行器仍保留，作为无密钥、超时或模型失败时的 fallback。
 
 ### Knowledge Search
 
@@ -79,7 +77,7 @@
 
 ### Capability Tools
 
-位置：`ticket_service/react_agent.py`、`ticket_service/troubleshooting.py`、`ticket_service/knowledge_base.py`
+位置：`ticket_service/langgraph_agent.py`、`ticket_service/troubleshooting.py`、`ticket_service/knowledge_base.py`
 
 作用：给 ReAct Executor 调用的确定性工具能力。当前注册的能力包括：
 
@@ -87,7 +85,7 @@
 - 轻量多轮排障树
 - 转人工工单草稿生成
 
-这里的“工具调用”是确定性的 Python 函数调用，不是让 LLM 自己随便调用外部接口。
+工具本身是确定性 Python 函数，工具选择由 LLM 通过 OpenAI-compatible `tool_calls` 完成。两者分开后，模型负责规划，代码负责执行权限和数据边界。
 
 ### MCP Server
 
@@ -120,7 +118,7 @@
 
 ### Verifier
 
-位置：`ticket_service/react_agent.py`
+位置：`ticket_service/langgraph_agent.py`
 
 作用：检查输出是否有证据、是否高风险、是否信息不足，并给出结构化状态：
 
@@ -132,23 +130,24 @@
 ## 主链路实现
 
 - 本地知识库检索由 `ticket_service/knowledge_base.py` 完成。
-- Agent 编排由 `ticket_service/react_agent.py` 完成。
+- LangGraph 编排与工具校验由 `ticket_service/langgraph_agent.py` 完成，`ticket_service/react_agent.py` 提供离线回退。
 - MCP Server 由 `ticket_service/mcp_server.py` 完成。
 - 工单闭环由 FastAPI + PostgreSQL/SQLite 完成。
 
 简历上更稳的说法是：
 
 ```text
-使用 Python/FastAPI 实现 IoT 售后 ReAct Agent 主链路，设计动态工具选择、本地混合检索、轻量排障树、Redis 会话记忆、MCP Server、Verifier 和工单闭环。
+使用 LangGraph + DeepSeek/百炼 Tool Calling 实现 IoT 售后 ReAct Agent 主链路，设计动态工具选择、本地混合检索、轻量排障树、Redis 会话记忆、MCP Server、Verifier、失败降级和工单闭环。
 ```
 
 ## 当前边界
 
-当前项目已经实现 ReAct-style Agent 编排、会话记忆、父子块路由、SSE 流式输出和官方 MCP SDK 工具服务，但还没有实现以下重型能力：
+当前项目已经实现 LangGraph 状态图、真实 LLM Tool Calling、会话记忆、父子块路由、SSE 输出和官方 MCP SDK 工具服务，但还没有实现以下重型能力：
 
 - HMAC 工具审批
 - Kafka 异步任务队列
 - Neo4j 知识图谱
 - Elasticsearch 生产级全文检索
+- PostgreSQL/Redis 持久化 LangGraph Checkpoint（当前 Graph Checkpoint 在进程内，业务会话记忆可使用 Redis）
 
 这些可以作为后续升级方向，但不要在简历里写成已经完成。

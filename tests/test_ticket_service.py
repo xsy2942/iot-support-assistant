@@ -10,6 +10,8 @@ def make_client(tmp_path, monkeypatch) -> TestClient:
     monkeypatch.setenv("TICKET_DB_PATH", str(tmp_path / "tickets.sqlite3"))
     monkeypatch.setenv("TICKET_DB_URL", "")
     monkeypatch.setenv("TROUBLESHOOTING_REDIS_URL", "")
+    monkeypatch.setenv("AGENT_MEMORY_REDIS_URL", "")
+    monkeypatch.setenv("AGENT_MODE", "deterministic")
 
     import ticket_service.main as main
 
@@ -376,6 +378,7 @@ def test_official_mcp_server_exposes_tools_and_resources(tmp_path, monkeypatch):
     monkeypatch.setenv("TICKET_DB_PATH", str(tmp_path / "mcp-tickets.sqlite3"))
     monkeypatch.setenv("TICKET_DB_URL", "")
     monkeypatch.setenv("AGENT_MEMORY_REDIS_URL", "")
+    monkeypatch.setenv("AGENT_MODE", "deterministic")
 
     from ticket_service.mcp_server import build_mcp_server
 

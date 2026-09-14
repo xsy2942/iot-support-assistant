@@ -10,6 +10,7 @@ from fastapi import FastAPI, HTTPException, Query
 from fastapi.responses import FileResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 
+from .agent_factory import create_support_agent
 from .agent_memory import AgentMemoryStore
 from .diagnostics import analyze_telemetry
 from .mcp import McpToolServer
@@ -28,7 +29,6 @@ from .models import (
     TroubleshootingRequest,
     TroubleshootingResult,
 )
-from .react_agent import ReActSupportAgent
 from .session_store import TroubleshootingSessionStore
 from .storage import create_ticket_store
 from .troubleshooting import guide_troubleshooting
@@ -46,7 +46,7 @@ AGENT_MEMORY_TTL_SECONDS = int(os.getenv("AGENT_MEMORY_TTL_SECONDS", str(SESSION
 STATIC_DIR = ROOT / "static"
 store = create_ticket_store(db_url=DB_URL, db_path=DB_PATH)
 session_store = TroubleshootingSessionStore(redis_url=REDIS_URL, ttl_seconds=SESSION_TTL_SECONDS)
-support_agent = ReActSupportAgent()
+support_agent = create_support_agent()
 agent_memory_store = AgentMemoryStore(redis_url=AGENT_MEMORY_REDIS_URL, ttl_seconds=AGENT_MEMORY_TTL_SECONDS)
 mcp_server = McpToolServer(agent=support_agent, ticket_store=store, memory_store=agent_memory_store)
 db_backend = "postgresql" if DB_URL else "sqlite"
@@ -66,12 +66,15 @@ def dashboard() -> FileResponse:
 
 
 @app.get("/health")
-def health() -> dict[str, str]:
+def health() -> dict[str, Any]:
     return {
         "status": "ok",
         "database": db_backend,
         "session_memory": session_store.backend,
         "agent_memory": agent_memory_store.backend,
+        "agent_runtime": getattr(support_agent, "runtime_name", "unknown"),
+        "agent_provider": getattr(support_agent, "provider", None),
+        "agent_model": getattr(support_agent, "model_name", None),
     }
 
 

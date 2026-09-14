@@ -5,13 +5,12 @@ from typing import Any
 
 from .agent_memory import AgentMemoryStore
 from .models import AgentRequest, TicketCreate
-from .react_agent import ReActSupportAgent
 
 
 class McpToolServer:
     """Compatibility JSON-RPC endpoint. The official MCP SDK server lives in mcp_server.py."""
 
-    def __init__(self, agent: ReActSupportAgent, ticket_store: Any, memory_store: AgentMemoryStore) -> None:
+    def __init__(self, agent: Any, ticket_store: Any, memory_store: AgentMemoryStore) -> None:
         self.agent = agent
         self.ticket_store = ticket_store
         self.memory_store = memory_store

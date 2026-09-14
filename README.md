@@ -2,7 +2,7 @@
 
 IoT 设备售后智能体与工单闭环系统。
 
-这是一个面向 IoT 设备售后场景的个人项目，重点覆盖设备离线、MQTT 连接超时、网关心跳丢失、固件升级失败、传感器采样异常、温湿度/振动/电压异常等问题。项目主链路是 Python 自研 ReAct Agent：根据每轮 Observation 动态选择 memory.read、troubleshooting.guide、knowledge.search、ticket.draft、final.answer 等工具，最后做证据校验与转人工判断。
+这是一个面向 IoT 设备售后场景的个人项目，重点覆盖设备离线、MQTT 连接超时、网关心跳丢失、固件升级失败、传感器采样异常、温湿度/振动/电压异常等问题。项目主链路使用 LangGraph 构建状态图，由 DeepSeek 或阿里云百炼真实返回 `tool_calls`，动态选择会话记忆、信息完整度检查、本地知识检索、工单草稿和最终校验工具；Python 确定性执行器作为模型不可用时的降级方案。
 
 ## 当前进度
 
@@ -11,7 +11,8 @@ IoT 设备售后智能体与工单闭环系统。
 - 500 条 IoT 售后知识分块：FAQ、错误码说明、历史工单、产品手册。
 - 150 条生成问答评测集、40 条挑战评测集与本地 RAG / Agent 评测。
 - 120 条遥测样例与 80 条诊断评测脚本。
-- Python ReAct Agent 编排接口：Reason -> Action -> Observation -> Verify 动态执行链。
+- LangGraph ReAct Agent：`planner -> tools -> planner` 循环，LLM 根据 Observation 自主选择下一项工具，最终结果必须经过 Verifier。
+- OpenAI-compatible LLM Tool Calling：支持 DeepSeek `deepseek-chat` 与百炼 `qwen-plus`，并保留确定性离线回退。
 - 本地混合检索：基于 `knowledge_chunks.csv` 做中文字符 n-gram 向量检索 + 关键词召回 + 设备型号/错误码/问题类型业务重排，并支持父子块聚合去重。
 - Agent 会话记忆：通过 `session_id` 合并多轮设备型号、错误码、网络状态等上下文字段，Redis 可选持久化短期记忆。
 - MCP Server：基于官方 `mcp` Python SDK 暴露 `agent_respond`、`knowledge_search`、`ticket_create` 工具，并提供知识库资源与 Prompt 模板。
@@ -25,6 +26,7 @@ IoT 设备售后智能体与工单闭环系统。
 ## 技术栈
 
 - Python 3 + FastAPI + Uvicorn + Pydantic
+- LangGraph + OpenAI Python SDK（DeepSeek / 百炼兼容接口）
 - MCP Python SDK
 - PostgreSQL 工单存储，SQLite 仅作为本地测试兜底
 - Redis 可选保存多轮排障短期上下文
@@ -67,6 +69,17 @@ AGENT_MEMORY_TTL_SECONDS=172800
 - 项目前端：[http://127.0.0.1:8000/](http://127.0.0.1:8000/)
 - API 文档：[http://127.0.0.1:8000/docs](http://127.0.0.1:8000/docs)
 - 健康检查：[http://127.0.0.1:8000/health](http://127.0.0.1:8000/health)
+
+Agent 运行模式在 `.env` 中配置：
+
+```env
+AGENT_MODE=auto
+AGENT_PROVIDER=deepseek
+```
+
+- `auto`：所选模型已配置密钥时启用 LangGraph，未配置时自动使用确定性执行器。
+- `langgraph`：强制启用真实 LLM 工具调用，缺少密钥时启动失败。
+- `deterministic`：不访问外部模型，适合离线开发和单元测试。
 
 多轮排障接口：
 
@@ -118,7 +131,7 @@ AGENT_MEMORY_TTL_SECONDS=172800
 
 当前评测分成两层：生成集用于验证链路可复现，挑战集用于检查口语改写、信息缺失、未知错误码和高风险转人工边界。不要把生成集 100% 写成真实泛化能力，简历更建议写合并挑战集后的指标。
 
-当前本地结果：
+当前本地结果（确定性检索与路由基线，不等同于线上 LLM 泛化指标）：
 
 - 生成问答集：150 条，Top3 召回率 100%，路由准确率 100%。
 - 合并挑战集：190 条，Top3 召回率 97.89%，路由准确率 95.79%，严格证据匹配率 83.33%，转人工准确率 92.31%，追问准确率 72.73%。
@@ -126,12 +139,27 @@ AGENT_MEMORY_TTL_SECONDS=172800
 
 ## Agent 主链路
 
-当前项目不把模型输出直接当作任务完成，而是把一次用户请求交给 ReAct-style 执行器动态选择工具：
+当前项目不把模型输出直接当作任务完成。一次请求进入 LangGraph 状态图后，由 LLM 根据消息和每轮 Observation 返回结构化 `tool_calls`，Harness 负责执行工具并把结果回传模型：
 
-1. `Reason`：基于当前问题、会话记忆和上一轮 Observation 判断下一步。
-2. `Action`：动态选择 `memory.read`、`troubleshooting.guide`、`knowledge.search`、`ticket.draft`、`final.answer` 等工具。
-3. `Observation`：记录工具返回的缺失字段、召回证据、风险信号或工单草稿。
-4. `Verify`：检查是否有引用证据、是否命中高风险词、最终状态是 `COMPLETE / PARTIAL / UNKNOWN / INCOMPLETE`。
+1. `Planner`：DeepSeek/百炼判断下一步并返回标准函数调用，不保存模型隐藏思维过程。
+2. `Tool Executor`：执行 `read_session_memory`、`inspect_support_context`、`search_iot_knowledge` 或 `draft_support_ticket`。
+3. `Observation`：将缺失字段、检索证据、风险信号或工单草稿以 `role=tool` 返回 LLM。
+4. `Verifier`：`finalize_support_response` 检查回答是否有真实来源、高风险是否已转人工、追问是否确有缺失字段。
+5. `Fallback`：模型超时、接口失败或达到最大规划轮数时，降级到确定性 Python ReAct 执行器。
+
+模型可选工具：
+
+- `read_session_memory`
+- `inspect_support_context`
+- `search_iot_knowledge`
+- `draft_support_ticket`
+- `finalize_support_response`
+
+真实模型命令行演示：
+
+```powershell
+.\.venv\Scripts\python.exe scripts\ask_langgraph_agent.py "GW-200 报 E104，设备离线且 MQTT 连接超时，应该怎么排查？" --provider deepseek --device-model GW-200 --error-code E104 --online-status 离线
+```
 
 Agent 记忆策略：
 

@@ -33,6 +33,10 @@ class ReActState:
 class ReActSupportAgent:
     """Dynamic ReAct-style agent that chooses the next tool from observations."""
 
+    runtime_name = "deterministic-react"
+    provider = None
+    model_name = None
+
     def __init__(self, knowledge_base: KnowledgeBase | None = None) -> None:
         self.knowledge_base = knowledge_base or KnowledgeBase()
 
@@ -58,11 +62,13 @@ class ReActSupportAgent:
             if state.final_response is not None:
                 state.final_response.react_trace = trace
                 state.final_response.plan = self._plan_from_trace(trace)
+                state.final_response.runtime = self.runtime_name
                 return state.final_response
 
         fallback = self._unknown_response(request, state)
         fallback.react_trace = trace
         fallback.plan = self._plan_from_trace(trace)
+        fallback.runtime = self.runtime_name
         return fallback
 
     def _select_action(self, request: AgentRequest, state: ReActState) -> tuple[str, str]:
